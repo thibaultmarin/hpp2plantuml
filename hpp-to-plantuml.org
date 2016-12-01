@@ -49,6 +49,8 @@ def _RenderClasses(class_objs, fid, link_list):
     ]
     for class_name, item_class in class_objs.items():
         class_str = 'class ' + class_name
+        if 'template' in item_class.keys():
+            class_str += '<%s>' % item_class['template']
         if item_class['abstract']:
             class_str = 'abstract ' + class_str
         # TODO: template class?
