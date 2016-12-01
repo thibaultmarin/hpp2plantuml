@@ -39,9 +39,9 @@ if __name__ == '__main__':
                         action='append', metavar='HEADER-FILE', required=True,
                         help='Input file')
     args = parser.parse_args()
-    file_list = _ExpandFileList(args.input_files)
-    if len(file_list) > 0:
-        CreatePlantUMLFile(file_list, args.output_file)
+    input_file_list = _ExpandFileList(args.input_files)
+    if len(input_file_list) > 0:
+        CreatePlantUMLFile(input_file_list, args.output_file)
 #+END_SRC
 
 
@@ -85,40 +85,49 @@ def _RenderClasses(class_objs, fid, link_list):
         if item_class['abstract']:
             class_str = 'abstract ' + class_str
         # TODO: template class?
-        fid.write(class_str + '{\n')
+        fid.write(class_str + ' {\n')
         for member_type, member_fun in member_type_map:
             for member_prop in MEMBER_PROP_MAP.keys():
                 item_list = item_class[member_type][member_prop]
                 for item in item_list:
                     fid.write('\t' + member_fun(item, member_prop) + '\n')
         fid.write('}\n\n')
+        for parent in item_class['inherits']:
+            if 'inherits' not in link_list:
+                link_list['inherits'] = {}
+            if class_name not in link_list['inherits']:
+                link_list['inherits'][class_name] = []
+            if parent not in link_list['inherits'][class_name]:
+                link_list['inherits'][class_name].append(parent['class'])
     return class_str
 
 def _RenderEnums(enum_objs, fid, link_list):
     for item_enum in enum_objs:
         enum_str = 'enum ' + item_enum['name']
-        fid.write(enum_str + '{\n')
+        fid.write(enum_str + ' {\n')
         for enum_value in item_enum['values']:
             fid.write('\t' + enum_value['name'] + '\n')
         fid.write('}\n')
     return enum_str
 
 def _RenderProperty(item_var, item_prop):
-    var_str = MEMBER_PROP_MAP[item_prop] + ' ' +\
+    var_str = MEMBER_PROP_MAP[item_prop] + \
               ('{static} ' if item_var['static'] else '') + \
               item_var['name'] + \
               ' : ' + item_var['type']
     return re.sub(r'[ ]+\*', '*', var_str)
 
 def _RenderMethod(item_method, item_prop):
-    method_str = MEMBER_PROP_MAP[item_prop] + ' ' +\
+    method_str = MEMBER_PROP_MAP[item_prop] + \
               ('{static} ' if item_method['static'] else
                '{abstract} ' if item_method['pure_virtual'] else '') + \
+              ('~' if item_method['destructor'] else '') + \
               item_method['name'] + \
               '(' + \
               ', '.join([it['type'] + ' ' + it['name'] for it in
                          item_method['parameters']]) + ')' + \
-              ' : ' + item_method['returns']
+              (' : ' + item_method['returns'] if item_method['returns'] else
+               '')
     return re.sub(r'[ ]+\*', '*',
                   re.sub(r'(\s)+', r'\1', method_str))
 
@@ -165,11 +174,14 @@ def CreatePlantUMLFile(file_list, output_file):
     """ Create PlantUML file from list of header files
     """
     # List of relationships
-    link_list = []
+    link_list = {}
     with open(output_file, 'wt') as fid:
         fid.write(_Preamble() + '\n')
         for header_file in file_list:
             _RenderFile(header_file, fid, link_list)
+        for child, parents in link_list['inherits'].items():
+            for parent in parents:
+                fid.write('\n' + parent + ' <|-- ' + child + '\n')
         fid.write(_Postamble() + '\n')
 
 #+END_SRC
