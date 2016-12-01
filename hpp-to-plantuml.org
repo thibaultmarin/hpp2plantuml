@@ -103,6 +103,7 @@ def _RenderEnums(enum_objs, fid, link_list):
 
 #+NAME: py-render-properties
 #+BEGIN_SRC python
+# %% Render class property
 def _RenderProperty(item_var, item_prop):
     var_str = MEMBER_PROP_MAP[item_prop] + \
               ('{static} ' if item_var['static'] else '') + \
@@ -116,7 +117,7 @@ def _RenderProperty(item_var, item_prop):
 
 #+NAME: py-render-properties
 #+BEGIN_SRC python
-
+# %% Render method in class
 def _RenderMethod(item_method, item_prop):
     method_str = MEMBER_PROP_MAP[item_prop] + \
               ('{static} ' if item_method['static'] else
@@ -130,7 +131,6 @@ def _RenderMethod(item_method, item_prop):
                '')
     return re.sub(r'[ ]+\*', '*',
                   re.sub(r'(\s)+', r'\1', method_str))
-
 #+END_SRC
 
 
@@ -139,14 +139,12 @@ def _RenderMethod(item_method, item_prop):
 #+NAME: py-pre-post-amble
 #+BEGIN_SRC python
 # %% PlantUML wrapper strings
-
 def _Preamble():
     return '@startuml\n'
 
 
 def _Postamble():
     return '\n@enduml\n'
-
 #+END_SRC
 
 
@@ -154,7 +152,6 @@ def _Postamble():
 
 #+NAME: py-render-header
 #+BEGIN_SRC python
-
 def _RenderFile(header_file, fid, link_list):
     # Types of objects
     type_map = [
@@ -167,9 +164,49 @@ def _RenderFile(header_file, fid, link_list):
     for obj_type, obj_str_f in type_map:
         objs = parsed_header.__getattribute__(obj_type)
         obj_str_f(objs, fid, link_list)
-
 #+END_SRC
 
+
+** TODO Relationships
+
+*** TODO Render inheritance links
+
+#+NAME: py-render-inherit
+#+BEGIN_SRC python
+# %% Render inheritance links
+def _RenderInheritLinks(inherit_link_dict, fid):
+    for child, parents in inherit_link_dict.items():
+        for parent in parents:
+            fid.write('\n' + parent + ' <|-- ' + child + '\n')
+#+END_SRC
+
+*** TODO Render composition links
+
+#+NAME: py-helper-composition-gather
+#+BEGIN_SRC python
+# %% Build list of composition links
+def _BuildCompLinks(link_list):
+    for class_item, prop_types in link_list['property_types'].items():
+        for prop_type in prop_types:
+            for class_el in link_list['classes_comp'].keys():
+                if re.search(r'\b' + class_el + r'\b', prop_type,
+                             flags=re.IGNORECASE):
+                    link_list['classes_comp'][class_el].append(class_item)
+#+END_SRC
+
+#+NAME: py-render-composition
+#+BEGIN_SRC python
+# %% Render composition links
+def _RenderCompLinks(comp_link_dict, fid):
+    for class_parent, class_children in comp_link_dict.items():
+        occ_map = [(g[0], len(list(g[1]))) for g in
+                   itertools.groupby(class_children)]
+        for class_child, child_count in occ_map:
+            count_str = '' if child_count == 1 else ' "%d"' % child_count
+            fid.write('\n' + class_child + count_str + ' *-- ' +
+                      class_parent + '\n')
+
+#+END_SRC
 
 * TODO Process input files
 
@@ -200,25 +237,18 @@ def CreatePlantUMLFile(file_list, output_file):
     link_list = {}
     with open(output_file, 'wt') as fid:
         fid.write(_Preamble() + '\n')
+
+        # Objects
         for header_file in file_list:
             _RenderFile(header_file, fid, link_list)
-        for child, parents in link_list['inherits'].items():
-            for parent in parents:
-                fid.write('\n' + parent + ' <|-- ' + child + '\n')
-        for class_item, prop_types in link_list['property_types'].items():
-            for prop_type in prop_types:
-                for class_el in link_list['classes_comp'].keys():
-                    if re.search(r'\b' + class_el + r'\b', prop_type,
-                                 flags=re.IGNORECASE):
-                        link_list['classes_comp'][class_el].append(class_item)
-        for class_parent, class_children in link_list['classes_comp'].items():
-            occ_map = [(g[0], len(list(g[1]))) for g in
-                       itertools.groupby(class_children)]
-            for class_child, child_count in occ_map:
-                count_str = '' if child_count == 1 else \
-                            ' "%d"' % child_count
-                fid.write('\n' + class_child + count_str + ' *-- ' +
-                          class_parent + '\n')
+
+        # Inheritance
+        _RenderInheritLinks(link_list['inherits'], fid)
+
+        # Composition
+        _BuildCompLinks(link_list)
+        _RenderCompLinks(link_list['classes_comp'], fid)
+
         fid.write(_Postamble() + '\n')
 
 #+END_SRC
