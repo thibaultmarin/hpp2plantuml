@@ -21,7 +21,6 @@ import io
 import re
 import glob
 import argparse
-import itertools
 import CppHeaderParser
 #+END_SRC
 
@@ -64,9 +63,8 @@ def _RenderClasses(class_objs, fid, link_list):
                             link_list['property_types'] = {}
                         if class_name not in link_list['property_types']:
                             link_list['property_types'][class_name] = []
-                        if item['type'] not in link_list['property_types'][class_name]:
-                            link_list['property_types'][class_name].append(
-                                item['type'])
+                        link_list['property_types'][class_name].append(
+                            item['type'])
         fid.write('}\n\n')
         if 'classes_comp' not in link_list:
             link_list['classes_comp'] = {}
@@ -186,12 +184,22 @@ def _RenderInheritLinks(inherit_link_dict, fid):
 #+BEGIN_SRC python
 # %% Build list of composition links
 def _BuildCompLinks(link_list):
-    for class_item, prop_types in link_list['property_types'].items():
+    for class_obj in link_list['classes_comp'].keys():
+        prop_types = link_list['property_types'][class_obj]
         for prop_type in prop_types:
-            for class_el in link_list['classes_comp'].keys():
-                if re.search(r'\b' + class_el + r'\b', prop_type,
+            for class_member in link_list['classes_comp'].keys():
+                if re.search(r'\b' + class_member + r'\b', prop_type,
                              flags=re.IGNORECASE):
-                    link_list['classes_comp'][class_el].append(class_item)
+                    if len(link_list['classes_comp'][class_obj]) == 0 or \
+                       class_member not in \
+                       [c[0] for c in link_list['classes_comp'][class_obj]]:
+                        link_list['classes_comp'][class_obj].append(
+                            [class_member, 1])
+                    else:
+                        idx = [c[0] for c in
+                               link_list['classes_comp'][class_obj]].index(
+                                   class_member)
+                        link_list['classes_comp'][class_obj][idx][1] += 1
 #+END_SRC
 
 #+NAME: py-render-composition
@@ -199,12 +207,10 @@ def _BuildCompLinks(link_list):
 # %% Render composition links
 def _RenderCompLinks(comp_link_dict, fid):
     for class_parent, class_children in comp_link_dict.items():
-        occ_map = [(g[0], len(list(g[1]))) for g in
-                   itertools.groupby(class_children)]
-        for class_child, child_count in occ_map:
+        for class_child, child_count in class_children:
             count_str = '' if child_count == 1 else ' "%d"' % child_count
-            fid.write('\n' + class_child + count_str + ' *-- ' +
-                      class_parent + '\n')
+            fid.write('\n' + class_parent + count_str + ' *-- ' +
+                      class_child + '\n')
 
 #+END_SRC
 
