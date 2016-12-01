@@ -1,0 +1,215 @@
+#+TITLE: hpp-to-plantuml Convert C++ header files to PlantUML
+#+DATE: <2016-11-30 Wed>
+#+TODO: TODO REVIEW | DONE DEFERRED ABANDONED
+#+PROPERTY: header-args+ :eval never
+#+PROPERTY: header-args+ :exports code :results silent
+#+PROPERTY: header-args:python+ :tangle hpp-to-plantuml.py
+
+* TODO Motivation
+
+The purpose of this tool is to convert C++ source code to UML diagrams that can
+be used with [[https://plantuml.com][PlantUML]].
+
+
+* TODO Requirements
+
+#+NAME: py-imports
+#+BEGIN_SRC python
+# %% Imports
+import sys
+import io
+import re
+import glob
+import argparse
+import CppHeaderParser
+#+END_SRC
+
+
+* TODO Command line mode
+
+#+NAME: py-parse-inputs
+#+BEGIN_SRC python
+# %% Standalone mode
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='hpp-to-plantuml tool.')
+    parser.add_argument('-o', '--output-file', dest='output_file',
+                        required=True, metavar='FILE', help='Output file')
+    parser.add_argument('-i', '--input-file', dest='input_files',
+                        action='append', metavar='HEADER-FILE', required=True,
+                        help='Input file')
+    args = parser.parse_args()
+    file_list = _ExpandFileList(args.input_files)
+    if len(file_list) > 0:
+        CreatePlantUMLFile(file_list, args.output_file)
+#+END_SRC
+
+
+* TODO Render elements
+
+** TODO Classes
+
+** TODO Enums
+
+** TODO Preamble / post amble
+
+#+NAME: py-pre-post-amble
+#+BEGIN_SRC python
+
+def _Preamble():
+    return '@startuml'
+
+
+def _Postamble():
+    return '@enduml'
+
+#+END_SRC
+
+** TODO Individual header file
+
+#+NAME: py-render-header
+#+BEGIN_SRC python
+MEMBER_PROP_MAP = {
+    'private': '-',
+    'public': '+',
+    'protected': '#'
+}
+
+def _RenderClasses(class_objs, fid, link_list):
+    member_type_map = [
+        ['properties', lambda item, prop: _RenderProperty(item, prop)],
+        ['methods', lambda item, prop:  _RenderMethod(item, prop)]
+    ]
+    for class_name, item_class in class_objs.items():
+        class_str = 'class ' + class_name
+        if item_class['abstract']:
+            class_str = 'abstract ' + class_str
+        # TODO: template class?
+        fid.write(class_str + '{\n')
+        for member_type, member_fun in member_type_map:
+            for member_prop in MEMBER_PROP_MAP.keys():
+                item_list = item_class[member_type][member_prop]
+                for item in item_list:
+                    fid.write('\t' + member_fun(item, member_prop) + '\n')
+        fid.write('}\n\n')
+    return class_str
+
+def _RenderEnums(enum_objs, fid, link_list):
+    for item_enum in enum_objs:
+        enum_str = 'enum ' + item_enum['name']
+        fid.write(enum_str + '{\n')
+        for enum_value in item_enum['values']:
+            fid.write('\t' + enum_value['name'] + '\n')
+        fid.write('}\n')
+    return enum_str
+
+def _RenderProperty(item_var, item_prop):
+    var_str = MEMBER_PROP_MAP[item_prop] + ' ' +\
+              ('{static} ' if item_var['static'] else '') + \
+              item_var['name'] + \
+              ' : ' + item_var['type']
+    return re.sub(r'[ ]+\*', '*', var_str)
+
+def _RenderMethod(item_method, item_prop):
+    method_str = MEMBER_PROP_MAP[item_prop] + ' ' +\
+              ('{static} ' if item_method['static'] else
+               '{abstract} ' if item_method['pure_virtual'] else '') + \
+              item_method['name'] + \
+              '(' + \
+              ', '.join([it['type'] + ' ' + it['name'] for it in
+                         item_method['parameters']]) + ')' + \
+              ' : ' + item_method['returns']
+    return re.sub(r'[ ]+\*', '*',
+                  re.sub(r'(\s)+', r'\1', method_str))
+
+
+def _RenderFile(header_file, fid, link_list):
+    # Types of objects
+    type_map = [
+        ['classes', lambda items, f, l: _RenderClasses(items, f, l)],
+        ['enums', lambda items, f, l: _RenderEnums(items, f, l)]
+    ]
+
+    # Parse header file
+    parsed_header = CppHeaderParser.CppHeader(header_file)
+    for obj_type, obj_str_f in type_map:
+        objs = parsed_header.__getattribute__(obj_type)
+        obj_str_f(objs, fid, link_list)
+            
+
+#+END_SRC
+
+* TODO Process input files
+
+** TODO Expand file list
+
+#+NAME: py-build-file-list
+#+BEGIN_SRC python
+def _ExpandFileList(input_files):
+    """ Find all in list (expanding wildcards)
+
+    Uses `glob` to list matching files.
+    """
+    file_list = []
+    for input_file in input_files:
+        file_list += glob.glob(input_file)
+    return file_list
+#+END_SRC
+
+
+** TODO Render objects
+
+#+NAME: py-create-plantuml
+#+BEGIN_SRC python
+def CreatePlantUMLFile(file_list, output_file):
+    """ Create PlantUML file from list of header files
+    """
+    # List of relationships
+    link_list = []
+    with open(output_file, 'wt') as fid:
+        fid.write(_Preamble() + '\n')
+        for header_file in file_list:
+            _RenderFile(header_file, fid, link_list)
+        fid.write(_Postamble() + '\n')
+
+#+END_SRC
+
+* TODO Tests
+
+** TODO Input files
+
+#+NAME: hpp-simple-classes
+#+BEGIN_SRC c++ :mkdirp yes :tangle test/simple-classes.hpp
+
+enum Enum01 { VALUE_0, VALUE_1, VALUE_2 };
+
+class Class01 {
+protected:
+	int _protected_var;
+	bool _ProtectedMethod(int param);
+	static bool _StaticProtectedMethod(bool param);
+	virtual bool _AbstractMethod(int param) = 0;
+public:
+	int public_var;
+	bool PublicMethod(int param);
+	static bool StaticPublicMethod(bool param);
+	virtual bool AbstractPublicMethod(int param) = 0;
+};
+
+class Class02 : public Class01 {
+private:
+	int _private_var;
+	bool _PrivateMethod(int param);
+	static bool _StaticPrivateMethod(bool param);
+	bool _AbstractMethod(int param) override;
+};
+
+class Class03 {
+public:
+	Class03();
+	~Class03();
+private:
+	Class01* _obj;
+};
+#+END_SRC
+
