@@ -21,60 +21,28 @@ import io
 import re
 import glob
 import argparse
+import itertools
 import CppHeaderParser
-#+END_SRC
-
-
-* TODO Command line mode
-
-#+NAME: py-parse-inputs
-#+BEGIN_SRC python
-# %% Standalone mode
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='hpp-to-plantuml tool.')
-    parser.add_argument('-o', '--output-file', dest='output_file',
-                        required=True, metavar='FILE', help='Output file')
-    parser.add_argument('-i', '--input-file', dest='input_files',
-                        action='append', metavar='HEADER-FILE', required=True,
-                        help='Input file')
-    args = parser.parse_args()
-    input_file_list = _ExpandFileList(args.input_files)
-    if len(input_file_list) > 0:
-        CreatePlantUMLFile(input_file_list, args.output_file)
 #+END_SRC
 
 
 * TODO Render elements
 
-** TODO Classes
+** TODO Constants
 
-** TODO Enums
-
-** TODO Preamble / post amble
-
-#+NAME: py-pre-post-amble
-#+BEGIN_SRC python
-
-def _Preamble():
-    return '@startuml'
-
-
-def _Postamble():
-    return '@enduml'
-
-#+END_SRC
-
-** TODO Individual header file
-
-#+NAME: py-render-header
+#+NAME: py-constants
 #+BEGIN_SRC python
 MEMBER_PROP_MAP = {
     'private': '-',
     'public': '+',
     'protected': '#'
 }
+#+END_SRC
 
+** TODO Classes
+
+#+NAME: py-render-classes
+#+BEGIN_SRC python
 def _RenderClasses(class_objs, fid, link_list):
     member_type_map = [
         ['properties', lambda item, prop: _RenderProperty(item, prop)],
@@ -91,16 +59,34 @@ def _RenderClasses(class_objs, fid, link_list):
                 item_list = item_class[member_type][member_prop]
                 for item in item_list:
                     fid.write('\t' + member_fun(item, member_prop) + '\n')
+                    if member_type == 'properties':
+                        if 'property_types' not in link_list:
+                            link_list['property_types'] = {}
+                        if class_name not in link_list['property_types']:
+                            link_list['property_types'][class_name] = []
+                        if item['type'] not in link_list['property_types'][class_name]:
+                            link_list['property_types'][class_name].append(
+                                item['type'])
         fid.write('}\n\n')
+        if 'classes_comp' not in link_list:
+            link_list['classes_comp'] = {}
+        if class_name not in link_list['classes_comp']:
+            link_list['classes_comp'][class_name] = []
         for parent in item_class['inherits']:
             if 'inherits' not in link_list:
                 link_list['inherits'] = {}
             if class_name not in link_list['inherits']:
                 link_list['inherits'][class_name] = []
-            if parent not in link_list['inherits'][class_name]:
+            if parent['class'] not in link_list['inherits'][class_name]:
                 link_list['inherits'][class_name].append(parent['class'])
     return class_str
+#+END_SRC
 
+
+** TODO Enums
+
+#+NAME: py-render-enums
+#+BEGIN_SRC python
 def _RenderEnums(enum_objs, fid, link_list):
     for item_enum in enum_objs:
         enum_str = 'enum ' + item_enum['name']
@@ -109,13 +95,27 @@ def _RenderEnums(enum_objs, fid, link_list):
             fid.write('\t' + enum_value['name'] + '\n')
         fid.write('}\n')
     return enum_str
+#+END_SRC
 
+** TODO Class members
+
+*** TODO Properties
+
+#+NAME: py-render-properties
+#+BEGIN_SRC python
 def _RenderProperty(item_var, item_prop):
     var_str = MEMBER_PROP_MAP[item_prop] + \
               ('{static} ' if item_var['static'] else '') + \
               item_var['name'] + \
               ' : ' + item_var['type']
     return re.sub(r'[ ]+\*', '*', var_str)
+#+END_SRC
+
+
+*** TODO Methods
+
+#+NAME: py-render-properties
+#+BEGIN_SRC python
 
 def _RenderMethod(item_method, item_prop):
     method_str = MEMBER_PROP_MAP[item_prop] + \
@@ -131,6 +131,29 @@ def _RenderMethod(item_method, item_prop):
     return re.sub(r'[ ]+\*', '*',
                   re.sub(r'(\s)+', r'\1', method_str))
 
+#+END_SRC
+
+
+** TODO Preamble / post amble
+
+#+NAME: py-pre-post-amble
+#+BEGIN_SRC python
+# %% PlantUML wrapper strings
+
+def _Preamble():
+    return '@startuml\n'
+
+
+def _Postamble():
+    return '\n@enduml\n'
+
+#+END_SRC
+
+
+** TODO Individual header file
+
+#+NAME: py-render-header
+#+BEGIN_SRC python
 
 def _RenderFile(header_file, fid, link_list):
     # Types of objects
@@ -144,9 +167,9 @@ def _RenderFile(header_file, fid, link_list):
     for obj_type, obj_str_f in type_map:
         objs = parsed_header.__getattribute__(obj_type)
         obj_str_f(objs, fid, link_list)
-            
 
 #+END_SRC
+
 
 * TODO Process input files
 
@@ -182,9 +205,44 @@ def CreatePlantUMLFile(file_list, output_file):
         for child, parents in link_list['inherits'].items():
             for parent in parents:
                 fid.write('\n' + parent + ' <|-- ' + child + '\n')
+        for class_item, prop_types in link_list['property_types'].items():
+            for prop_type in prop_types:
+                for class_el in link_list['classes_comp'].keys():
+                    if re.search(r'\b' + class_el + r'\b', prop_type,
+                                 flags=re.IGNORECASE):
+                        link_list['classes_comp'][class_el].append(class_item)
+        for class_parent, class_children in link_list['classes_comp'].items():
+            occ_map = [(g[0], len(list(g[1]))) for g in
+                       itertools.groupby(class_children)]
+            for class_child, child_count in occ_map:
+                count_str = '' if child_count == 1 else \
+                            ' "%d"' % child_count
+                fid.write('\n' + class_child + count_str + ' *-- ' +
+                          class_parent + '\n')
         fid.write(_Postamble() + '\n')
 
 #+END_SRC
+
+
+* TODO Command line mode
+
+#+NAME: py-parse-inputs
+#+BEGIN_SRC python
+# %% Standalone mode
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='hpp-to-plantuml tool.')
+    parser.add_argument('-o', '--output-file', dest='output_file',
+                        required=True, metavar='FILE', help='Output file')
+    parser.add_argument('-i', '--input-file', dest='input_files',
+                        action='append', metavar='HEADER-FILE', required=True,
+                        help='Input file')
+    args = parser.parse_args()
+    input_file_list = _ExpandFileList(args.input_files)
+    if len(input_file_list) > 0:
+        CreatePlantUMLFile(input_file_list, args.output_file)
+#+END_SRC
+
 
 * TODO Tests
 
