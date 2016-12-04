@@ -3,15 +3,29 @@
 #+TODO: TODO REVIEW | DONE DEFERRED ABANDONED
 #+PROPERTY: header-args+ :eval never
 #+PROPERTY: header-args+ :exports code :results silent
-#+PROPERTY: header-args:python+ :tangle hpp-to-plantuml.py
+#+PROPERTY: header-args:python+ :tangle hpptoplantuml.py
 
-* TODO Motivation
+* REVIEW Motivation
 
 The purpose of this tool is to convert C++ source code to UML diagrams that can
 be used with [[https://plantuml.com][PlantUML]].
 
+PlantUML is a program rendering UML diagrams from plain text inputs using an
+expressive language.
+
+This module generates the text input to PlantUML from C++ header files.  Its
+ambition is limited but it should produce reasonable conversion for simple class
+hierarchies.  It aims at supporting:
+- class members with properties (=private=, =method=, =protected=), methods with
+  basic qualifiers (=static=, abstract),
+- inheritance relationships,
+- composition relationships (very basic support).
+
 
 * TODO Requirements
+
+This module has mostly standard dependencies; the only exception is the
+[[http://senexcanis.com/open-source/cppheaderparser/][CppHeaderParser]] module used to parse header files.
 
 #+NAME: py-imports
 #+BEGIN_SRC python
@@ -27,10 +41,20 @@ import CppHeaderParser
 
 * TODO Render elements
 
+The module code consists in specific rendering functions for individual
+elements.
+
+
 ** TODO Constants
+
+The =MEMBER_PROP_MAP= variable maps class member types to corresponding PlantUML
+characters.
 
 #+NAME: py-constants
 #+BEGIN_SRC python
+# %% Constants
+
+# Association between member property and PlantUML symbol
 MEMBER_PROP_MAP = {
     'private': '-',
     'public': '+',
@@ -38,103 +62,215 @@ MEMBER_PROP_MAP = {
 }
 #+END_SRC
 
+** TODO Base class
+
+#+NAME: py-obj-container
+#+BEGIN_SRC python
+# %% Base classes
+
+class Container:
+    def __init__(self, container_type, name):
+        self._container_type = container_type
+        self._name = name
+        self._member_list = []
+
+    def parse_members(self, header_container):
+        raise NotImplementedError(
+            'Derived class must implement `parse_members`.')
+
+    def render(self):
+        container_str = self._render_container_def() + ' {\n'
+        for member in self._member_list:
+            container_str += '\t' + member.render() + '\n'
+        container_str += '}\n'
+
+    def _render_container_def(self):
+        return self._container_type + ' ' + self._name
+
+class ContainerMember:
+    def __init__(self, header_member, **kwargs):
+        self._name = header_member['name']
+
+    def render(self):
+        raise NotImplementedError('Derived class must implement `render`.')
+#+END_SRC
+
+
 ** TODO Classes
+
+Classes are rendered with the =_RenderClasses= function.  Abstract and template
+classes are labeled accordingly.
+
+Methods and properties and handled by the [[#sec_class_methods][=_RenderMethod=]] and the
+[[#sec_class_properties][=_RenderProperty=]] functions respectively.  Members are also categorized by scope
+(public, private, protected)
+
+The =_RenderClasses= function also builds lists of relationships which are
+rendered after all files have been processed:
+- a list of member variable types, used to establish the composition
+  relationships between classes,
+- an inheritance list
+
 
 #+NAME: py-render-classes
 #+BEGIN_SRC python
-def _RenderClasses(class_objs, fid, link_list):
-    member_type_map = [
-        ['properties', lambda item, prop: _RenderProperty(item, prop)],
-        ['methods', lambda item, prop:  _RenderMethod(item, prop)]
-    ]
-    for class_name, item_class in class_objs.items():
-        class_str = 'class ' + class_name
-        if 'template' in item_class.keys():
-            class_str += '<%s>' % item_class['template']
-        if item_class['abstract']:
-            class_str = 'abstract ' + class_str
-        # TODO: template class?
-        fid.write(class_str + ' {\n')
-        for member_type, member_fun in member_type_map:
-            for member_prop in MEMBER_PROP_MAP.keys():
-                item_list = item_class[member_type][member_prop]
-                for item in item_list:
-                    fid.write('\t' + member_fun(item, member_prop) + '\n')
-                    if member_type == 'properties':
-                        if 'property_types' not in link_list:
-                            link_list['property_types'] = {}
-                        if class_name not in link_list['property_types']:
-                            link_list['property_types'][class_name] = []
-                        link_list['property_types'][class_name].append(
-                            item['type'])
-        fid.write('}\n\n')
-        if 'classes_comp' not in link_list:
-            link_list['classes_comp'] = {}
-        if class_name not in link_list['classes_comp']:
-            link_list['classes_comp'][class_name] = []
-        for parent in item_class['inherits']:
-            if 'inherits' not in link_list:
-                link_list['inherits'] = {}
-            if class_name not in link_list['inherits']:
-                link_list['inherits'][class_name] = []
-            if parent['class'] not in link_list['inherits'][class_name]:
-                link_list['inherits'][class_name].append(parent['class'])
-    return class_str
-#+END_SRC
+# %% Class object
 
+class Class(Container):
+    def __init__(self, header_class):
+        super().__init__('class', header_class['name'])
+        self.parse_members(header_class)
+        self._abstract = header_class['abstract']
+        self._template_type = None
+        if 'template' in header_class['template']:
+            self._template_type = header_class['template']
+        self._inheritance_list = [parent['class']
+                                  for parent in header_class['inherits']]
+        self.parse_members(header_class)
+
+    def parse_members(self, header_class):
+        member_type_map = [
+            ['properties', lambda item, prop: ClassVariable(item, prop)],
+            ['methods', lambda item, prop:  ClassMethod(item, prop)]
+        ]
+        for member_type, member_type_handler in member_type_map:
+            for member_prop in MEMBER_PROP_MAP.keys():
+                member_list = header_class[member_type][member_prop]
+                for header_member in member_list:
+                    self._member_list.append(
+                        member_type_handler(header_member, member_prop))
+
+    def build_variable_type_list(self):
+        variable_type_list = []
+        for member in self._member_list:
+            if isinstance(member, ClassVariable):
+                variable_type_list.append(member.get_type())
+        return variable_type_list
+
+    def build_inheritance_list(self):
+        return self._inheritance_list
+
+    def _render_container_def(self):
+        class_str = self._container_type + ' ' + self._name
+        if self._abstract:
+            class_str = 'abstract ' + class_str
+        if self._template_type is not None:
+            class_str += ' <{0}>'.format(self._template_type)
+        return class_str
+#+END_SRC
 
 ** TODO Enums
 
+Enumeration lists rendering is trivial.  Note that the enumeration elements are
+rendered without the actual values.
+
 #+NAME: py-render-enums
 #+BEGIN_SRC python
-def _RenderEnums(enum_objs, fid, link_list):
-    for item_enum in enum_objs:
-        enum_str = 'enum ' + item_enum['name']
-        fid.write(enum_str + ' {\n')
-        for enum_value in item_enum['values']:
-            fid.write('\t' + enum_value['name'] + '\n')
-        fid.write('}\n')
-    return enum_str
+# %% Enum object
+class Enum(Container):
+    def __init__(self, header_enum):
+        super().__init__('enum', header_enum['name'])
+        self.parse_members(header_enum)
+
+    def parse_members(self, header_enum):
+        for value in header_enum['values']:
+            self._member_list += EnumValue(value)
+
+
+class EnumValue(ContainerMember):
+    def __init__(self, header_value, **kwargs):
+        super().__init__(header_value)
+
+    def render(self):
+        return self._name
 #+END_SRC
+
 
 ** TODO Class members
 
-*** TODO Properties
-
-#+NAME: py-render-properties
+#+NAME: py-obj-class_member
 #+BEGIN_SRC python
-# %% Render class property
-def _RenderProperty(item_var, item_prop):
-    var_str = MEMBER_PROP_MAP[item_prop] + \
-              ('{static} ' if item_var['static'] else '') + \
-              item_var['name'] + \
-              ' : ' + item_var['type']
-    return re.sub(r'[ ]+\*', '*', var_str)
+# %% Class member
+class ClassMember(ContainerMember):
+    def __init__(self, class_member, member_scope='private'):
+        super().__init__(class_member['name'])
+        self._type = None
+        self._static = class_member['static']
+        self._scope = member_scope
+
+    def render(self):
+        member_str = MEMBER_PROP_MAP[self._scope] + \
+                      ('{static} ' if self._static else '') + \
+                      self._render_name() + \
+                      (' : ' + self._type if self._type else '')
+        return member_str
+
+    def _render_name(self):
+        return self._name
+#+END_SRC
+
+
+*** TODO Properties
+    :PROPERTIES:
+    :CUSTOM_ID: sec_class_properties
+    :END:
+
+#+NAME: py-obj-class_variable
+#+BEGIN_SRC python
+# %% Class variable
+class ClassVariable(ClassMember):
+    def __init__(self, class_variable, member_scope='private'):
+        assert(isinstance(class_variable,
+                          CppHeaderParser.CppHeaderParser.CppVariable))
+
+        super().__init__(class_variable, member_scope)
+
+        self._type = _cleanup_type(class_variable['type'])
+
+    def get_type(self):
+        return self._type
 #+END_SRC
 
 
 *** TODO Methods
+    :PROPERTIES:
+    :CUSTOM_ID: sec_class_methods
+    :END:
 
-#+NAME: py-render-properties
+#+NAME: py-obj-class_method
 #+BEGIN_SRC python
-# %% Render method in class
-def _RenderMethod(item_method, item_prop):
-    method_str = MEMBER_PROP_MAP[item_prop] + \
-              ('{static} ' if item_method['static'] else
-               '{abstract} ' if item_method['pure_virtual'] else '') + \
-              ('~' if item_method['destructor'] else '') + \
-              item_method['name'] + \
-              '(' + \
-              ', '.join([it['type'] + ' ' + it['name'] for it in
-                         item_method['parameters']]) + ')' + \
-              (' : ' + item_method['returns'] if item_method['returns'] else
-               '')
-    return re.sub(r'[ ]+\*', '*',
-                  re.sub(r'(\s)+', r'\1', method_str))
+# %% Class method
+class ClassMethod(ClassMember):
+    def __init__(self, class_method, member_scope):
+        assert(isinstance(class_method,
+                          CppHeaderParser.CppHeaderParser.CppMethod))
+
+        super().__init__(class_method, member_scope)
+
+        self._type = _cleanup_type(class_method['returns'])
+        self._abstract = class_method['pure_virtual']
+        if class_method['destructor']:
+            self._name = '~' + self._name
+        self._param_list = []
+        for param in class_method['parameters']:
+            self._param_list.append([_cleanup_type(param['type']),
+                                     param['name']])
+
+    def _render_name(self):
+        assert(not self._static or not self._abstract)
+
+        method_str = ('{abstract} ' if self._abstract else '') + \
+                     self._name + '(' + \
+                     ', '.join(' '.join(it) for it in self._param_list) + ')'
+
+        return method_str
 #+END_SRC
 
 
-** TODO Preamble / post amble
+** TODO Preamble / postamble
+
+PlantUML files start with =@startuml= and end with =@enduml=.  This is handled
+by the preamble and postamble functions.
 
 #+NAME: py-pre-post-amble
 #+BEGIN_SRC python
@@ -142,11 +278,33 @@ def _RenderMethod(item_method, item_prop):
 def _Preamble():
     return '@startuml\n'
 
-
 def _Postamble():
     return '\n@enduml\n'
 #+END_SRC
 
+
+** TODO Diagram object
+
+#+NAME: py-obj-diagram
+#+BEGIN_SRC python
+# %% Diagram class
+
+class Diagram:
+    def __init__(self, file_list):
+        container_type_map = [
+            ['classes', lambda item: Class(item)],
+            ['enums', lambda item: Enum(item)]
+        ]
+        self._objects = []
+
+        for header_file in file_list:
+            # Parse header file
+            parsed_header = CppHeaderParser.CppHeader(header_file)
+            for container_type, container_handler in container_type_map:
+                objects = parsed_header.__getattribute__(container_type)
+                container_handler(objects)
+
+#+END_SRC
 
 ** TODO Individual header file
 
@@ -216,7 +374,19 @@ def _RenderCompLinks(comp_link_dict, fid):
 
 #+END_SRC
 
-* TODO Process input files
+
+
+* TODO Helper functions
+
+** TODO Sanitize type string
+
+#+NAME: py-helper-cleanup-str
+#+BEGIN_SRC python
+def _cleanup_type(type_str):
+    return re.sub(r'[ ]+\*', '*',
+                  re.sub(r'(\s)+', r'\1', type_str))
+#+END_SRC
+
 
 ** TODO Expand file list
 
@@ -233,6 +403,8 @@ def _ExpandFileList(input_files):
     return file_list
 #+END_SRC
 
+
+* TODO Process input files
 
 ** TODO Render objects
 
@@ -268,7 +440,7 @@ def CreatePlantUMLFile(file_list, output_file):
 #+BEGIN_SRC python
 # %% Standalone mode
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='hpp-to-plantuml tool.')
     parser.add_argument('-o', '--output-file', dest='output_file',
                         required=True, metavar='FILE', help='Output file')
@@ -279,6 +451,9 @@ if __name__ == '__main__':
     input_file_list = _ExpandFileList(args.input_files)
     if len(input_file_list) > 0:
         CreatePlantUMLFile(input_file_list, args.output_file)
+
+if __name__ == '__main__':
+    main()
 #+END_SRC
 
 
@@ -305,6 +480,8 @@ public:
 };
 
 class Class02 : public Class01 {
+public:
+	bool AbstractPublicMethod(int param) override;
 private:
 	int _private_var;
 	bool _PrivateMethod(int param);
@@ -312,12 +489,15 @@ private:
 	bool _AbstractMethod(int param) override;
 };
 
+template<typename T>
 class Class03 {
 public:
 	Class03();
 	~Class03();
 private:
 	Class01* _obj;
+	list<Class02> _obj_list;
+	T* _typed_obj;
 };
 #+END_SRC
 
