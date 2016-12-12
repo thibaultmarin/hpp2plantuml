@@ -1,6 +1,7 @@
 #+TITLE: hpp2plantuml - Convert C++ header files to PlantUML
 #+DATE: <2016-11-30 Wed>
 #+TODO: TODO REVIEW | DONE DEFERRED ABANDONED
+#+MACRO: tt \nbsp{}
 #+PROPERTY: header-args+ :exports code :results silent
 #+PROPERTY: header-args:python+ :tangle src/hpp2plantuml/hpp2plantuml.py :mkdirp yes
 
@@ -98,7 +99,7 @@ The tests rely on the [[http://nose.readthedocs.io/en/latest/][nosetest]] framew
 with [[http://sphinx-doc.org][Sphinx]].
 
 
-* TODO Module source code
+* REVIEW Module source code
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
@@ -131,14 +132,18 @@ inheritance properties and parsing member types into [[#sec-module-relationship]
 
 
 ** REVIEW String representation constants
+   :PROPERTIES:
+   :CUSTOM_ID: sec-module-constants
+   :END:
 
 Some constant variables are defined to store the PlantUML string representation
 of elementary properties and links.
 - The ~MEMBER_PROP_MAP~ variable maps class member types to corresponding
   PlantUML characters.
 - The ~LINK_TYPE_MAP~ variable stores the PlantUML representation of inheritance
-  and composition relationships
-- ~CONTAINER_TYPE_MAP~
+  and composition relationships.
+- ~CONTAINER_TYPE_MAP~ associates object types with internal classes used for
+  their representation.
 
 #+NAME: py-constants
 #+BEGIN_SRC python
@@ -170,12 +175,22 @@ CONTAINER_TYPE_MAP = [
 #+END_SRC
 
 
-** TODO Objects
+** REVIEW Objects
 
-The module currently supports ~class~ and ~enum~ objects.
+C++ objects parsed by the =CppHeaderParser= module are converted to internal
+objects which perform two tasks:
+1. extract properties supported by PlantUML,
+2. generate text following the PlantUML syntax representing the object
+
+The module currently supports ~class~ and ~enum~ objects.  They are implemented
+via the internal ~Class~ and ~Enum~ objects, which inherits from a common base
+class.
 
 
 *** REVIEW Base class
+    :PROPERTIES:
+    :CUSTOM_ID: sec-module-container
+    :END:
 
 C++ objects are represented by objects derived from the base ~Container~ class.
 The ~Container~ class is abstract and contains:
@@ -340,7 +355,12 @@ class ContainerMember(object):
 #+END_SRC
 
 
-*** TODO Classes
+*** REVIEW Classes
+
+C++ class objects are represented using the ~Class~ class.  It extends the
+[[#sec-module-container][~Container~]] class adding class properties (template, abstract) and a list of
+parent classes.  It also offers a method to extract the types of its members,
+which is used to determine composition relationships between classes.
 
 #+NAME: py-render-classes
 #+BEGIN_SRC python
@@ -450,7 +470,20 @@ class Class(Container):
 #+END_SRC
 
 
-*** TODO Class members
+*** REVIEW Class members
+    :PROPERTIES:
+    :CUSTOM_ID: sec-module-class-member
+    :END:
+
+Members of C++ classes are represented by the ~ClassMember~ object, which
+inherits from the base [[#sec-module-container][~ContainerMember~]] class.  The ~ClassMember~ class is a
+super-class for [[#sec_class_properties][member variables]] and [[#sec_class_methods][class methods]].
+
+In addition to the base representation, ~ClassMember~ objects store the type of
+the object, the scope (e.g. public or private) and a static flag.  The rendering
+of the member is mostly common between variables and methods.  The ~ClassMember~
+class provides the common rendering and relies on child classes implementing the
+~_render_name~ method for specialization.
 
 #+NAME: py-obj-class_member
 #+BEGIN_SRC python
@@ -511,10 +544,14 @@ class ClassMember(ContainerMember):
 #+END_SRC
 
 
-**** TODO Properties
+**** REVIEW Properties
     :PROPERTIES:
     :CUSTOM_ID: sec_class_properties
     :END:
+
+The specialization required for class member variables is minimal: the member
+type is extracted from the parsed dictionary, and the rest of the setup is left
+to the [[#sec-module-class-member][parent class]].
 
 #+NAME: py-obj-class_variable
 #+BEGIN_SRC python
@@ -557,10 +594,18 @@ class ClassVariable(ClassMember):
 #+END_SRC
 
 
-**** TODO Methods
+**** REVIEW Methods
     :PROPERTIES:
     :CUSTOM_ID: sec_class_methods
     :END:
+
+Member methods store additional information on the class members: an abstract
+flag is used to purely virtual methods, the method name is modified to prefix a
+tilde sign (=~=) for destructor methods and a list of parameters is stored.
+
+The name rendering includes the method signature.  An option to shorten the list
+of parameters by keeping only types or names or using ellipsis may be
+implemented in the future.
 
 #+NAME: py-obj-class_method
 #+BEGIN_SRC python
@@ -624,8 +669,11 @@ class ClassMethod(ClassMember):
 #+END_SRC
 
 
-*** TODO Structures
+*** REVIEW Structures
 
+While ~struct~ objects are currently not supported, their addition should be
+relatively straightforward and the ~Struct~ class may simply inherit from the
+~Class~ class.  The following should give a starting point.
 
 #+NAME: py-render-structs
 #+BEGIN_SRC python
@@ -653,10 +701,11 @@ class Struct(Class):
 #+END_SRC
 
 
-*** TODO Enums
+*** REVIEW Enumeration lists
 
-Enumeration lists rendering is trivial.  Note that the enumeration elements are
-rendered without the actual values.
+The ~Enum~ class representing enumeration object is a trivial extension of the
+base [[#sec-module-container][~Container~]] class.  Note that the enumeration elements are rendered without
+the actual values.
 
 #+NAME: py-render-enums
 #+BEGIN_SRC python
@@ -722,10 +771,20 @@ class EnumValue(ContainerMember):
 #+END_SRC
 
 
-*** TODO Class relationships
+*** REVIEW Class relationships
     :PROPERTIES:
     :CUSTOM_ID: sec-module-relationship
     :END:
+
+The current version only supports inheritance and composition relationships.  No
+attempt is made to differentiate between composition and aggregation
+relationships from the code; instead, an object have as a member of a type
+defined by another class is assumed to be a composition relationship.
+
+The base ~ClassRelationship~ class defines the common properties of class
+relationships: a parent, a child and a connection type.  All are saved as
+strings and the text representation of a connection link is obtained from the
+[[#sec-module-constants][~CONTAINER_TYPE_MAP~ constant]].
 
 #+NAME: py-class_relationship
 #+BEGIN_SRC python
@@ -776,13 +835,13 @@ class ClassRelationship(object):
         child object name.
 
         Returns
+        -------
         str
             The string representation of the class relationship following the
             PlantUML syntax
-
         """
         return self._parent + ' ' + self._render_link_type() + \
-               ' ' + self._child
+            ' ' + self._child
 
     def _render_link_type(self):
         """Internal representation of link
@@ -796,6 +855,17 @@ class ClassRelationship(object):
             The link between parent and child following the PlantUML syntax
         """
         return LINK_TYPE_MAP[self._link_type]
+#+END_SRC
+
+
+**** REVIEW Inheritance
+
+The inheritance relationship is a straightforward specialization of the base
+~ClassRelationship~ class: it simply forces the link type to be "inherit".
+
+#+NAME: py-class_inheritance
+#+BEGIN_SRC python
+# %% Class inheritance
 
 
 class ClassInheritanceRelationship(ClassRelationship):
@@ -815,6 +885,19 @@ class ClassInheritanceRelationship(ClassRelationship):
             Derived class
         """
         super().__init__('inherit', c_parent, c_child)
+#+END_SRC
+
+
+**** REVIEW Composition
+
+The composition relationship specializes the base ~ClassRelationship~ class by
+using the "composition" link type and adding a ~count~ field used to add a label
+with the number of instances of the parent class in the PlantUML diagram (the
+count is omitted when equal to one).
+
+#+NAME: py-class_composition
+#+BEGIN_SRC python
+# %% Class composition
 
 
 class ClassCompositionRelationship(ClassRelationship):
@@ -857,10 +940,68 @@ class ClassCompositionRelationship(ClassRelationship):
 #+END_SRC
 
 
-*** TODO Diagram object
+*** REVIEW Diagram object
     :PROPERTIES:
     :CUSTOM_ID: sec-module-diagram
     :END:
+
+The ~Diagram~ object is the main interface between the C++ code and the PlantUML
+program.  It contains a list of objects parsed from the header files, maintains
+lists of relationships and provides rendering facilities to produce a string
+ready to process by PlantUML.
+
+An example use case for the ~Diagram~ class could be:
+#+NAME: py-diag-example
+#+BEGIN_SRC python :tangle no
+# Create object
+diag = Diagram()
+# Initialize from filename
+diag.create_from_file(filename)
+# Get output string following PlantUML syntax
+output_string = diag.render()
+#+END_SRC
+
+The interface methods and their behavior are summarized in
+Table{{{tt}}}[[tbl-diagram-interface]].
+
+#+NAME: tbl-diagram-interface
+| Method name             | input type | input list? | reset? | sort? | build lists? |
+|-------------------------+------------+-------------+--------+-------+--------------|
+| create_from_file        | file       | no          | yes    | yes   | yes          |
+| create_from_file_list   | file       | yes         | yes    | yes   | yes          |
+| add_from_file           | file       | no          | no     | no    | no           |
+| add_from_file_list      | file       | yes         | no     | no    | no           |
+| create_from_string      | string     | no          | yes    | yes   | yes          |
+| create_from_string_list | string     | yes         | yes    | yes   | yes          |
+| add_from_string         | string     | no          | no     | no    | no           |
+| add_from_string_list    | string     | yes         | no     | no    | no           |
+
+Functionally, the parsing is left to the =CppHeaderParser= module, the output of
+which is parsed into internal objects using ~Container~ parsers.  The main
+functionality of the ~Diagram~ class consists in building the relationship lists
+between classes.  The assumption is that for a link to be stored, it must be
+between two objects present in the ~Diagram~ object (no external
+relationships).
+
+To build the inheritance list, the objects are browsed and
+~ClassInheritanceRelationship~ instances are added to the list whenever the
+parent class is defined within the ~Diagram~ object.
+
+Construction of the list of composition links is slightly more complex.  A first
+run through the object extracts all the member types for ~Class~ objects.  Next
+a list of (type, count) pairs is constructed for members of types defined within
+the ~Diagram~ object.  Finally, the list is used to instantiate
+~ClassCompositionRelationship~ objects stored in a list.
+
+The rendering function builds a string containing the PlantUML preamble
+postamble text for diagrams (~@startuml~, ~@enduml~), the rendered text for each
+object and the rendered relationship links.
+
+In order to ensure that the rendering is reproducible, a sorted mechanism has
+been implemented for objects, members and relationships.  Objects and object
+members are sorted by type and name and relationships are sorted by parent name,
+child name and link type if necessary.  The ~add_from_*~ interface methods can
+be used to avoid this feature.
 
 #+NAME: py-obj-diagram
 #+BEGIN_SRC python
@@ -1215,9 +1356,14 @@ class Diagram(object):
 #+END_SRC
 
 
-** TODO Helper functions
+** REVIEW Helper functions
 
-*** TODO Sanitize type string
+This section briefly describes the helper functions defined in the module.
+
+*** REVIEW Sanitize type string
+
+The ~_cleanup_type~ function tries to unify the string representation of types
+by eliminating spaces =*= characters.
 
 #+NAME: py-helper-cleanup-str
 #+BEGIN_SRC python
@@ -1245,7 +1391,12 @@ def _cleanup_type(type_str):
 #+END_SRC
 
 
-*** TODO Expand file list
+*** REVIEW Expand file list
+
+The [[#sec-module-create-uml][main interface function]] accepts wildcards in filenames; they are resolved
+using the =glob= package.  The ~expand_file_list~ function takes as input a list
+of filenames and expands wildcards using the ~glob~ command returning a list of
+existing filenames without wildcards.
 
 #+NAME: py-build-file-list
 #+BEGIN_SRC python
@@ -1277,12 +1428,19 @@ def expand_file_list(input_files):
 #+END_SRC
 
 
-** TODO Process input files
+** REVIEW Main function: create PlantUML from C++
+  :PROPERTIES:
+  :CUSTOM_ID: sec-module-create-uml
+  :END:
 
-*** TODO Render objects
-   :PROPERTIES:
-   :CUSTOM_ID: sec-module-create-uml
-   :END:
+The ~CreatePlantUMLFile~ function is the main entry point for the module.  It
+takes as input a list of header files (possibly with wildcards) and an output
+filename and converts the input header files into a text file ready for use with
+the PlantUML program.
+
+The function creates a ~Diagram~ object, initializes it with the expanded list
+of input files and writes the content of the ~Diagram.render()~ method to the
+output file.
 
 #+NAME: py-create-plantuml
 #+BEGIN_SRC python
@@ -1312,14 +1470,16 @@ def CreatePlantUMLFile(file_list, output_file):
 #+END_SRC
 
 
-* TODO Command line mode
+** REVIEW Command line interface
 
-#+NAME: py-parse-inputs
-#+BEGIN_SRC python :tangle src/hpp2plantuml/command_line.py
-# %% Standalone mode
+The ~main~ function provides a minimal command line interface using =argparse=
+to parse input arguments.  The function passes the command line arguments to the
+[[#sec-module-create-uml][~CreatePlantUMLFile~]] function.
 
-import argparse
-import hpp2plantuml
+#+NAME: py-cmd-main
+#+BEGIN_SRC python
+# %% Command line interface
+
 
 def main():
     """Command line interface
@@ -1336,8 +1496,10 @@ def main():
                         action='append', metavar='HEADER-FILE', required=True,
                         help='Input file')
     args = parser.parse_args()
-    if len(input_file_list) > 0:
+    if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file)
+
+# %% Standalone mode
 
 
 if __name__ == '__main__':
@@ -1345,7 +1507,7 @@ if __name__ == '__main__':
 #+END_SRC
 
 
-* TODO Usage
+* REVIEW Usage
 
 #+NAME: doc-usage
 #+BEGIN_SRC org
@@ -1369,6 +1531,7 @@ optional arguments:
   -i HEADER-FILE, --input-file HEADER-FILE
                         Input file
 ,#+END_EXAMPLE
+
 
 Input files are added using the ~-i~ option.  Inputs can be file paths or
 include wildcards.  The output file is selected with the ~-o~ option.  The
@@ -1394,8 +1557,87 @@ produce a string output instead of writing to a text file.
 
 
 * TODO Tests
+ :PROPERTIES:
+ :header-args:python+: :tangle tests/test_hpp2plantuml.py
+ :END:
 
-** TODO Input files
+#+NAME: test-setup
+#+BEGIN_SRC python
+"""Test module for hpp2plantuml"""
+
+# %% Imports
+
+import os
+import nose.tools as nt
+import CppHeaderParser
+import hpp2plantuml
+
+test_fold = os.path.abspath(os.path.dirname(__file__))
+
+# %% Helper functions
+
+
+def get_parsed_element(input_str):
+    return CppHeaderParser.CppHeader(input_str, argType='string')
+#+END_SRC
+
+** TODO Unit tests
+
+#+NAME: test-unit-container
+#+BEGIN_SRC python
+# %% Test containers
+
+
+class TestContainer:
+    def test_init(self):
+        c_type = "container_type"
+        c_name = "container_name"
+        c_obj = hpp2plantuml.hpp2plantuml.Container(c_type, c_name)
+        nt.assert_equal(c_obj.get_name(), c_name)
+        nt.assert_equal(c_obj.render(), 'container_type container_name {\n}\n')
+
+    def test_comparison_keys(self):
+        c_list = [
+            ['class', 'ABD'],
+            ['enum', 'ABDa'],
+            ['class', 'abcd'],
+        ]
+        ref_sort_idx = [0, 2, 1]
+        c_obj_list = []
+        for c_type, c_name in c_list:
+            c_obj_list.append(hpp2plantuml.hpp2plantuml.Container(
+                c_type, c_name))
+        c_obj_list.sort(key=lambda obj: obj.comparison_keys())
+
+        for i in range(len(c_list)):
+            nt.assert_equal(c_obj_list[i].get_name(),
+                            c_list[ref_sort_idx[i]][1])
+#+END_SRC
+
+#+NAME: test-unit-class
+#+BEGIN_SRC python
+class TestClass:
+    def test_init(self):
+        input_str = """
+class TestClass {
+public:
+int _p_member;
+};
+"""
+        output_ref_str = """class TestClass {
+	+_p_member : int
+}
+"""
+        p = get_parsed_element(input_str)
+        class_input = ['TestClass', p.classes['TestClass']]
+        obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
+        nt.assert_equal(output_ref_str, obj_c.render())
+#+END_SRC
+
+
+** TODO Full system test
+
+*** TODO Input files
 
 #+NAME: hpp-simple-classes-1-2
 #+BEGIN_SRC c++ :mkdirp yes :tangle tests/simple_classes_1_2.hpp
@@ -1441,7 +1683,7 @@ private:
 
 
 
-** TODO Reference output
+*** TODO Reference output
 
 
 #+NAME: puml-simple-classes
@@ -1488,23 +1730,7 @@ Class02  *-- Class03
 #+END_SRC
 
 
-** TODO Tests
-  :PROPERTIES:
-  :header-args:python+: :tangle tests/test_hpp2plantuml.py
-  :END:
-
-#+NAME: test-setup
-#+BEGIN_SRC python
-
-# %% Imports
-
-import os
-import nose.tools as nt
-import hpp2plantuml
-
-test_fold = os.path.abspath(os.path.dirname(__file__))
-
-#+END_SRC
+*** TODO Test diagram generation
 
 #+NAME: test-full-diagram
 #+BEGIN_SRC python
@@ -1517,7 +1743,7 @@ class TestFullDiagram():
 
     def test_full_files(self):
         # Create first version
-        file_list_ref = list(set(hpp2plantuml.expand_file_list(
+        file_list_ref = list(set(hpp2plantuml.hpp2plantuml.expand_file_list(
             [os.path.join(test_fold, f) for f in self._input_files])))
         diag_ref = hpp2plantuml.Diagram()
         diag_ref.create_from_file_list(file_list_ref)
@@ -1532,7 +1758,7 @@ class TestFullDiagram():
 
         # File expansion
         for file_list in [self._input_files, self._input_files_w]:
-            file_list_c = list(set(hpp2plantuml.expand_file_list(
+            file_list_c = list(set(hpp2plantuml.hpp2plantuml.expand_file_list(
                 [os.path.join(test_fold, f) for f in file_list])))
             diag_c = hpp2plantuml.Diagram()
             diag_c.create_from_file_list(file_list_c)
@@ -1596,9 +1822,9 @@ __email__ = "thibault.marin@gmx.com"
 __license__ = "MIT"
 __copyright__ = "Copyright (c) 2016 Thibault Marin"
 
-from .hpp2plantuml import CreatePlantUMLFile, Diagram, expand_file_list
+from .hpp2plantuml import CreatePlantUMLFile, Diagram
 
-__all__ = ['CreatePlantUMLFile', 'Diagram', 'expand_file_list']
+__all__ = ['CreatePlantUMLFile', 'Diagram']
 
 #+END_SRC
 
@@ -1715,7 +1941,7 @@ if __name__ == "__main__":
         test_suite='nose.collector',
         tests_require=['nose'],
         entry_points={
-            'console_scripts': ['hpp2plantuml=hpp2plantuml.command_line:main']
+            'console_scripts': ['hpp2plantuml=hpp2plantuml.hpp2plantuml:main']
         }
     )
 
@@ -1731,12 +1957,12 @@ if __name__ == "__main__":
 hpp2plantuml - Convert C++ header files to PlantUML
 ===================================================
 
-<<doc-intro>>
+<<el-org-to-rst("doc-intro")>>
 
 Usage
 -----
 
-<<doc-usage>>
+<<el-org-to-rst("doc-usage")>>
 
 #+END_SRC
 
@@ -2119,23 +2345,32 @@ intersphinx_mapping = {'https://docs.python.org/': None}
 *** Index page
 
 #+NAME: doc-rst-index
-#+BEGIN_SRC rst :mkdirp yes :tangle doc/source/index.rst
+#+BEGIN_SRC rst :noweb yes :mkdirp yes :tangle doc/source/index.rst
 
 .. hpp2plantuml documentation master file.
 
 hpp2plantuml documentation
 ==========================
 
-Contents:
-
 .. toctree::
    :maxdepth: 4
 
-The module documentation extracted from the module's docstrings is here:
-   :doc:`hpp2plantuml`
+<<el-org-to-rst("doc-intro")>>
 
-The full documentation generated from the package's org-file is here:
-   :doc:`org-doc`
+Usage
+-----
+
+<<el-org-to-rst("doc-usage")>>
+
+Module documentation generated from docstrings
+----------------------------------------------
+
+:doc:`hpp2plantuml`
+
+Full org-mode package documentation
+-----------------------------------
+
+:doc:`org-doc`
 
 Indices and tables
 ==================
@@ -2149,7 +2384,37 @@ Indices and tables
 
 * TODO Org-mode setup
 
+** REVIEW org-to-rst
+
+The following source block converts the content of an org source block to rst
+format using the ~org-rst-convert-region-to-rst~ function.
+
+#+NAME: el-org-to-rst
+#+BEGIN_SRC emacs-lisp :var input="doc-intro" :results silent
+(save-excursion
+  (let* ((temp-output-buffer "*tmp-org-to-rst*")
+         (src-info (progn
+                     (org-babel-goto-named-src-block input)
+                     (org-babel-get-src-block-info t)))
+         (src-content (car (cdr src-info))))
+    (with-temp-buffer
+      (insert src-content)
+      (mark-whole-buffer)
+      (org-rst-convert-region-to-rst)
+      (replace-regexp-in-string "\n$" "" (buffer-string)))))
+#+END_SRC
+
+
 ** TODO Tangling
+
+#+NAME: el-tangle-readme
+#+BEGIN_SRC emacs-lisp :var input="doc-intro" :results silent
+(org-export-to-file 'rst "doc/source/org-doc.rst")
+;;(save-excursion
+;;  (org-babel-goto-named-src-block "rst-README")
+;;  (org-babel-tangle '(4)))
+#+END_SRC
+
 
 ** TODO Generate documentation
 
@@ -2174,11 +2439,13 @@ Indices and tables
   - [X] install doesn't do anything
   - [X] add script to install
   - [ ] add build doc command
-- [ ] conf.py (sphinx)
-  - [ ] Include both automatically generated documentation (from docstrings) and
+- [-] conf.py (sphinx)
+  - [X] Include both automatically generated documentation (from docstrings) and
     org file
   - [ ] Render org blocks as regular text
-- [ ] Write elisp function which:
-  - [ ] tangles source files
-  - [ ] creates documentation rst (and README.rst)
+- [ ] Extra files for package
+  - [ ] MANIFEST.in?
+- [X] Write elisp function which:
+  - [X] tangles source files
+  - [X] creates documentation rst (and README.rst)
 - [X] Link to org-mode rst documentation from index.rst -> Use only org-mode rst?
