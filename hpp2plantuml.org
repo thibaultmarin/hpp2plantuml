@@ -769,7 +769,7 @@ class ClassRelationship(object):
         return self._parent, self._child, self._link_type
 
     def render(self):
-        """Render clas relationship to string
+        """Render class relationship to string
 
         This method generically appends the parent name, a rendering of the
         link type (obtained from the :func:`_render_link_type` method) and the
