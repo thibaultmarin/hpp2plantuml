@@ -758,8 +758,8 @@ class ClassRelationship(object):
     def comparison_keys(self):
         """Order comparison key between `ClassRelationship` objects
 
-        Compare alphabetically based on the parent name, the child name then the
-        link type.
+        Compare alphabetically based on the parent name, the child name then
+        the link type.
 
         Returns
         -------
@@ -901,8 +901,8 @@ class Diagram(object):
         Parameters
         ----------
         input_list : list(ClassRelationship)
-            Sort list using the :func:`ClassRelationship.compare` comparison
-            function
+            Sort list using the :func:`ClassRelationship.comparison_keys`
+            comparison function
         """
         input_list.sort(key=lambda obj: obj.comparison_keys())
 
@@ -910,8 +910,8 @@ class Diagram(object):
         """Sort elements in diagram
 
         Sort the objects and relationship links.  Objects are sorted using the
-        :func:`Container.compare` comparison function and list are sorted using
-        the `_sort_list` helper function.
+        :func:`Container.comparison_keys` comparison function and list are
+        sorted using the `_sort_list` helper function.
         """
         self._objects.sort(key=lambda obj: obj.comparison_keys())
         for obj in self._objects:
@@ -1645,7 +1645,7 @@ from setuptools import setup, find_packages
 ###################################################################
 
 NAME = "hpp2plantuml"
-PACKAGES = find_packages(where="hpp2plantuml")
+PACKAGES = find_packages(where="src")
 META_PATH = os.path.join("src", NAME, "__init__.py")
 KEYWORDS = ["class", "attribute", "boilerplate"]
 CLASSIFIERS = [
@@ -1708,7 +1708,7 @@ if __name__ == "__main__":
         keywords=KEYWORDS,
         long_description=read("README.rst"),
         packages=PACKAGES,
-        package_dir={"": "hpp2plantuml"},
+        package_dir={"": "src"},
         zip_safe=False,
         classifiers=CLASSIFIERS,
         install_requires=INSTALL_REQUIRES,
@@ -1766,9 +1766,16 @@ Usage
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
+import os
+import sys
 # sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath("../.."))
+
+# Customizations
+
+autoclass_content = 'both'
+autodoc_default_flags = ['members', 'undoc-members', 'private-members']
+numpydoc_show_class_members = False
 
 # Customizations
 
@@ -1792,7 +1799,8 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
-    'sphinx.ext.autosummary'
+    'sphinx.ext.autosummary',
+    'numpydoc'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -2108,6 +2116,37 @@ intersphinx_mapping = {'https://docs.python.org/': None}
 #+END_SRC
 
 
+*** Index page
+
+#+NAME: doc-rst-index
+#+BEGIN_SRC rst :mkdirp yes :tangle doc/source/index.rst
+
+.. hpp2plantuml documentation master file.
+
+hpp2plantuml documentation
+==========================
+
+Contents:
+
+.. toctree::
+   :maxdepth: 4
+
+The module documentation extracted from the module's docstrings is here:
+   :doc:`hpp2plantuml`
+
+The full documentation generated from the package's org-file is here:
+   :doc:`org-doc`
+
+Indices and tables
+==================
+
+,* :ref:`genindex`
+,* :ref:`modindex`
+,* :ref:`search`
+
+#+END_SRC
+
+
 * TODO Org-mode setup
 
 ** TODO Tangling
@@ -2129,13 +2168,15 @@ intersphinx_mapping = {'https://docs.python.org/': None}
 - [-] Add tests
   - [ ] Unit tests
   - [X] Full diagram test
-  - [ ] Test structs
   - [ ] Add test coverage report to documentation
-- [ ] setup.py
-  - [ ] install doesn't do anything
+  - [ ] Test structs
+- [-] setup.py
+  - [X] install doesn't do anything
+  - [X] add script to install
   - [ ] add build doc command
-  - [ ] add script to install
 - [ ] conf.py (sphinx)
+  - [ ] Include both automatically generated documentation (from docstrings) and
+    org file
   - [ ] Render org blocks as regular text
 - [ ] Write elisp function which:
   - [ ] tangles source files
