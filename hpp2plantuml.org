@@ -668,7 +668,8 @@ class ClassMethod(ClassMember):
 
         method_str = ('{abstract} ' if self._abstract else '') + \
                      self._name + '(' + \
-                     ', '.join(' '.join(it) for it in self._param_list) + ')'
+                     ', '.join(' '.join(it).strip()
+                               for it in self._param_list) + ')'
 
         return method_str
 #+END_SRC
@@ -1391,7 +1392,7 @@ def _cleanup_type(type_str):
     str
         The type string after cleanup
     """
-    return re.sub(r'[ ]+\*', '*',
+    return re.sub(r'[ ]+([*&])', r'\1',
                   re.sub(r'(\s)+', r'\1', type_str))
 #+END_SRC
 
@@ -1583,6 +1584,7 @@ produce a string output instead of writing to a text file.
 # %% Imports
 
 import os
+import re
 import nose.tools as nt
 import CppHeaderParser
 import hpp2plantuml
@@ -1597,6 +1599,10 @@ def get_parsed_element(input_str):
 #+END_SRC
 
 ** TODO Unit tests
+
+*** TODO Container
+
+Test elementary operations of the ~Container~ class.
 
 #+NAME: test-unit-container
 #+BEGIN_SRC python
@@ -1629,24 +1635,133 @@ class TestContainer:
                             c_list[ref_sort_idx[i]][1])
 #+END_SRC
 
+*** TODO Class
+
+Unit testing for classes is performed by parsing minimal C++ code segments and
+comparing the rendered text to a reference.  The input/output pairs are stored
+in org-table and tangled to test files.  Adding tests should be as simple as
+adding rows to the table.
+
+
+**** TODO Class variable
+
+Class variables have simple functionality.  The following table
+(Table{{{tt}}}[[tbl-unittest-class_var]]) defines tests that validate representation
+of variables' scope and type.
+
+#+NAME: tbl-unittest-class_var
+#+CAPTION: List of test segments and corresponding PlantUML input strings.
+| "class Test {\npublic:\nint p_member; };"     | "+p_member : int"  |
+| "class Test {\nprivate:\nint * p_member; };"  | "-p_member : int*" |
+| "class Test {\nprotected:\nint &p_member; };" | "#p_member : int&" |
+
+
+#+NAME: test-unit-class_var
+#+BEGIN_SRC python :var test_list_classvar=tbl-unittest-class_var
+class TestClassVariable:
+    def test_list_entries(self):
+        for test_idx, (input_str, output_ref_str) in \
+            enumerate(test_list_classvar):
+            p = get_parsed_element(input_str)
+            class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                                input_str.replace('\n', ' '))
+            class_input = [class_name, p.classes[class_name]]
+            obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
+            obj_m = obj_c._member_list[0]
+            nt.assert_equal(output_ref_str, obj_m.render(),
+                            'Test {0} failed [input: {1}]'.format(test_idx,
+                                                                  input_str))
+#+END_SRC
+
+
+**** TODO Class method
+
+The tests for class methods are listed in
+Table{{{tt}}}[[tbl-unittest-class_method]].  Note that template methods are not
+supported but PlantUML.
+
+#+NAME: tbl-unittest-class_method
+#+CAPTION: List of test segments and corresponding PlantUML input strings.
+| "class Test {\npublic:\nint & func(int * a); };"                         | "+func(int* a) : int&"         |
+| "class Test {\npublic:\nstatic int func(int & a); };"                    | "+{static} func(int& a) : int" |
+| "class Test {\nprivate:\nvirtual int * func() = 0; };"                   | "-{abstract} func() : int*"    |
+| "class Test {\npublic:\n~Test(); };"                                     | "+~Test()"                     |
+| "class Test {\nprotected:\ntemplate <typename T>int &func(string &); };" | "#func(string &) : int&"       |
+
+
+#+NAME: test-unit-class_method
+#+BEGIN_SRC python :var test_list_classmethod=tbl-unittest-class_method
+class TestClassMethod:
+    def test_list_entries(self):
+        for test_idx, (input_str, output_ref_str) in \
+            enumerate(test_list_classmethod):
+            p = get_parsed_element(input_str)
+            class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                                input_str.replace('\n', ' '))
+            class_input = [class_name, p.classes[class_name]]
+            obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
+            obj_m = obj_c._member_list[0]
+            nt.assert_equal(output_ref_str, obj_m.render(),
+                            'Test {0} failed [input: {1}]'.format(test_idx,
+                                                                  input_str))
+#+END_SRC
+
+
+**** TODO Class
+
+The unit test for classes includes rendering tests for the code segments in
+Table{{{tt}}}[[tbl-unittest-class]].
+
+#+NAME: tbl-unittest-class
+#+CAPTION: List of test segments and corresponding PlantUML input strings.
+| "class Test {\nprotected:\nint & p_member; };"                     | "class Test {\n\t#p_member : int&\n}\n"                                               |
+| "class Test\n{\npublic:\nvirtual int func() = 0; };"               | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                              |
+| "template <typename T> class Test{\nT* func(T& arg); };"           | "class Test <template <typename T>> {\n\t-func(T& arg) : T*\n}\n"                     |
+| "template <typename T> class Test{\nvirtual T* func(T& arg)=0; };" | "abstract class Test <template <typename T>> {\n\t-{abstract} func(T& arg) : T*\n}\n" |
+
+
 #+NAME: test-unit-class
-#+BEGIN_SRC python
+#+BEGIN_SRC python :var test_list_class=tbl-unittest-class
 class TestClass:
-    def test_init(self):
-        input_str = """
-class TestClass {
-public:
-int _p_member;
-};
-"""
-        output_ref_str = """class TestClass {
-	+_p_member : int
-}
-"""
-        p = get_parsed_element(input_str)
-        class_input = ['TestClass', p.classes['TestClass']]
-        obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
-        nt.assert_equal(output_ref_str, obj_c.render())
+    def test_list_entries(self):
+        for test_idx, (input_str, output_ref_str) in \
+            enumerate(test_list_class):
+            p = get_parsed_element(input_str)
+            class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                                input_str.replace('\n', ' '))
+            class_input = [class_name, p.classes[class_name]]
+            obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
+            nt.assert_equal(output_ref_str, obj_c.render(),
+                            'Test {0} failed [input: {1}]'.format(test_idx,
+                                                                  input_str))
+#+END_SRC
+
+
+*** TODO Enum
+
+The unit test for enum objects includes rendering tests for the code segments in
+Table{{{tt}}}[[tbl-unittest-enum]].
+
+#+NAME: tbl-unittest-enum
+#+CAPTION: List of test segments and corresponding PlantUML input strings.
+| "enum Test { A, B, CD, E };"        | "enum Test {\n\tA\n\tB\n\tCD\n\tE\n}\n" |
+| "enum Test\n{\n A = 0, B = 12\n };" | "enum Test {\n\tA\n\tB\n}\n"            |
+
+
+#+NAME: test-unit-enum
+#+BEGIN_SRC python :var test_list_enum=tbl-unittest-enum
+class TestEnum:
+    def test_list_entries(self):
+        for test_idx, (input_str, output_ref_str) in \
+            enumerate(test_list_enum):
+            p = get_parsed_element(input_str)
+            enum_name = re.sub(r'.*enum\s*(\w+).*', r'\1',
+                               input_str.replace('\n', ' '))
+            enum_input = p.enums[0]
+            obj_c = hpp2plantuml.hpp2plantuml.Enum(enum_input)
+            nt.assert_equal(output_ref_str, obj_c.render(),
+                            'Test {0} failed [input: {1}]'.format(test_idx,
+                                                                  input_str))
 #+END_SRC
 
 
@@ -1738,8 +1853,8 @@ enum Enum01 {
 }
 
 Class01 <|-- Class02
-Class01  *-- Class03
-Class02  *-- Class03
+Class03  o-- Class01
+Class03  o-- Class02
 
 @enduml
 #+END_SRC
