@@ -160,6 +160,7 @@ MEMBER_PROP_MAP = {
 # Links
 LINK_TYPE_MAP = {
     'inherit': '<|--',
+    'aggregation': 'o--',
     'composition': '*--'
 }
 
@@ -398,7 +399,7 @@ class Class(Container):
         self._template_type = None
         if 'template' in header_class[1]:
             self._template_type = header_class[1]['template']
-        self._inheritance_list = [parent['class']
+        self._inheritance_list = [re.sub('<.*>', '', parent['class'])
                                   for parent in header_class[1]['inherits']]
         self.parse_members(header_class[1])
 
@@ -639,6 +640,10 @@ class ClassMethod(ClassMember):
         super().__init__(class_method, member_scope)
 
         self._type = _cleanup_type(class_method['returns'])
+        if class_method['returns_pointer']:
+            self._type += '*'
+        elif class_method['returns_reference']:
+            self._type += '&'
         self._abstract = class_method['pure_virtual']
         if class_method['destructor']:
             self._name = '~' + self._name
@@ -1270,7 +1275,7 @@ class Diagram(object):
         for obj_class, obj_comp_list in composition_counts.items():
             for comp_parent, comp_count in obj_comp_list:
                 self._composition_list.append(
-                    ClassCompositionRelationship(comp_parent, obj_class,
+                    ClassCompositionRelationship(obj_class, comp_parent,
                                                  comp_count))
 
     def _augment_comp(self, c_dict, c_parent, c_child):
@@ -1298,7 +1303,7 @@ class Diagram(object):
                 c_dict[c_child].append([c_parent, 1])
             else:
                 c_idx = parent_list.index(c_parent)
-                c_dict[c_child[c_idx]][1] += 1
+                c_dict[c_child][c_idx][1] += 1
 
     def render(self):
         """Render full UML diagram
@@ -1447,7 +1452,7 @@ output file.
 # %% Main function
 
 
-def CreatePlantUMLFile(file_list, output_file):
+def CreatePlantUMLFile(file_list, output_file=None):
     """ Create PlantUML file from list of header files
 
     This function parses a list of C++ header files and generates a file for
@@ -1461,12 +1466,19 @@ def CreatePlantUMLFile(file_list, output_file):
     output_file : str
         Name of the output file
     """
-
+    if isinstance(file_list, str):
+        file_list_c = [file_list, ]
+    else:
+        file_list_c = file_list
     diag = Diagram()
-    diag.create_from_file_list(list(set(expand_file_list(file_list))))
+    diag.create_from_file_list(list(set(expand_file_list(file_list_c))))
+    diag_render = diag.render()
 
-    with open(output_file, 'wt') as fid:
-        fid.write(diag.render())
+    if output_file is None:
+        print(diag_render)
+    else:
+        with open(output_file, 'wt') as fid:
+            fid.write(diag_render)
 #+END_SRC
 
 
@@ -1491,7 +1503,8 @@ def main():
     """
     parser = argparse.ArgumentParser(description='hpp2plantuml tool.')
     parser.add_argument('-o', '--output-file', dest='output_file',
-                        required=True, metavar='FILE', help='Output file')
+                        required=False, default=None, metavar='FILE',
+                        help='Output file')
     parser.add_argument('-i', '--input-file', dest='input_files',
                         action='append', metavar='HEADER-FILE', required=True,
                         help='Input file')
@@ -1515,9 +1528,11 @@ if __name__ == '__main__':
 The ~hpp2plantuml~ package can be used from the command line or as a module in
 other applications.
 
+
 ,* Command line
 
 The command line usage is (~hpp2plantuml --help~):
+
 
 ,#+BEGIN_EXAMPLE
 usage: command_line.py [-h] -o FILE -i HEADER-FILE
