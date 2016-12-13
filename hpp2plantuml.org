@@ -24,7 +24,7 @@ hierarchies.  It aims at supporting:
 - class members with properties (~private~, ~method~, ~protected~), methods with
   basic qualifiers (~static~, abstract),
 - inheritance relationships,
-- composition relationships (very basic support).
+- aggregation relationships (very basic support).
 #+END_SRC
 
 
@@ -141,7 +141,7 @@ of elementary properties and links.
 - The ~MEMBER_PROP_MAP~ variable maps class member types to corresponding
   PlantUML characters.
 - The ~LINK_TYPE_MAP~ variable stores the PlantUML representation of inheritance
-  and composition relationships.
+  and aggregation relationships.
 - ~CONTAINER_TYPE_MAP~ associates object types with internal classes used for
   their representation.
 
@@ -361,7 +361,7 @@ class ContainerMember(object):
 C++ class objects are represented using the ~Class~ class.  It extends the
 [[#sec-module-container][~Container~]] class adding class properties (template, abstract) and a list of
 parent classes.  It also offers a method to extract the types of its members,
-which is used to determine composition relationships between classes.
+which is used to determine aggregation relationships between classes.
 
 #+NAME: py-render-classes
 #+BEGIN_SRC python
@@ -428,7 +428,7 @@ class Class(Container):
         """Get type of member variables
 
         This function extracts the type of each member variable.  This is used
-        to list composition relationships between classes.
+        to list aggregation relationships between classes.
 
         Returns
         -------
@@ -564,7 +564,7 @@ class ClassVariable(ClassMember):
 
     This class specializes the `ClassMember` object for member variables.
     Additionally to the base class, it stores variable types as strings.  This
-    is used to establish composition relationships between objects.
+    is used to establish aggregation relationships between objects.
     """
     def __init__(self, class_variable, member_scope='private'):
         """Constructor
@@ -781,10 +781,10 @@ class EnumValue(ContainerMember):
     :CUSTOM_ID: sec-module-relationship
     :END:
 
-The current version only supports inheritance and composition relationships.  No
+The current version only supports inheritance and aggregation relationships.  No
 attempt is made to differentiate between composition and aggregation
 relationships from the code; instead, an object have as a member of a type
-defined by another class is assumed to be a composition relationship.
+defined by another class is assumed to be a aggregation relationship.
 
 The base ~ClassRelationship~ class defines the common properties of class
 relationships: a parent, a child and a connection type.  All are saved as
@@ -801,7 +801,7 @@ class ClassRelationship(object):
 
     This class defines the common structure of class relationship objects.
     This includes a parent/child pair and a relationship type (e.g. inheritance
-    or composition).
+    or aggregation).
     """
     def __init__(self, link_type, c_parent, c_child):
         """Constructor
@@ -809,7 +809,7 @@ class ClassRelationship(object):
         Parameters
         ----------
         link_type : str
-            Relationship type: ``inherit`` or ``composition``
+            Relationship type: ``inherit`` or ``aggregation``
         c_parent : str
             Name of parent class
         c_child : str
@@ -893,26 +893,26 @@ class ClassInheritanceRelationship(ClassRelationship):
 #+END_SRC
 
 
-**** REVIEW Composition
+**** REVIEW Aggregation
 
-The composition relationship specializes the base ~ClassRelationship~ class by
-using the "composition" link type and adding a ~count~ field used to add a label
+The aggregation relationship specializes the base ~ClassRelationship~ class by
+using the "aggregation" link type and adding a ~count~ field used to add a label
 with the number of instances of the parent class in the PlantUML diagram (the
 count is omitted when equal to one).
 
-#+NAME: py-class_composition
+#+NAME: py-class_aggregation
 #+BEGIN_SRC python
-# %% Class composition
+# %% Class aggregation
 
 
-class ClassCompositionRelationship(ClassRelationship):
-    """Representation of composition relationships
+class ClassAggregationRelationship(ClassRelationship):
+    """Representation of aggregation relationships
 
     This module extends the base `ClassRelationship` class by setting the link
-    type to ``composition``.  It also keeps a count of composition, which is
+    type to ``aggregation``.  It also keeps a count of aggregation, which is
     displayed near the arrow when using PlantUML.
 
-    Composition relationships are simplified to represent the presence of a
+    Aggregation relationships are simplified to represent the presence of a
     variable type (possibly within a container such as a list) in a class
     definition.
     """
@@ -923,14 +923,14 @@ class ClassCompositionRelationship(ClassRelationship):
         ----------
         c_parent : str
             Class corresponding to the type of the member variable in the
-            composition relationship
+            aggregation relationship
         c_child : str
-            Child (or client) class of the composition relationship
+            Child (or client) class of the aggregation relationship
         c_cout : int
             The number of members of ``c_child`` that are of type (possibly
             through containers) ``c_parent``
         """
-        super().__init__('composition', c_parent, c_child)
+        super().__init__('aggregation', c_parent, c_child)
         self._count = c_count
 
     def _render_link_type(self):
@@ -992,11 +992,11 @@ To build the inheritance list, the objects are browsed and
 ~ClassInheritanceRelationship~ instances are added to the list whenever the
 parent class is defined within the ~Diagram~ object.
 
-Construction of the list of composition links is slightly more complex.  A first
+Construction of the list of aggregation links is slightly more complex.  A first
 run through the object extracts all the member types for ~Class~ objects.  Next
 a list of (type, count) pairs is constructed for members of types defined within
 the ~Diagram~ object.  Finally, the list is used to instantiate
-~ClassCompositionRelationship~ objects stored in a list.
+~ClassAggregationRelationship~ objects stored in a list.
 
 The rendering function builds a string containing the PlantUML preamble
 postamble text for diagrams (~@startuml~, ~@enduml~), the rendered text for each
@@ -1035,7 +1035,7 @@ class Diagram(object):
         """
         self._objects = []
         self._inheritance_list = []
-        self._composition_list = []
+        self._aggregation_list = []
 
     def clear(self):
         """Reinitiliaze object"""
@@ -1063,7 +1063,7 @@ class Diagram(object):
         for obj in self._objects:
             obj.sort_members()
         Diagram._sort_list(self._inheritance_list)
-        Diagram._sort_list(self._composition_list)
+        Diagram._sort_list(self._aggregation_list)
 
     def _build_helper(self, input, build_from='string', flag_build_lists=True,
                       flag_reset=False):
@@ -1181,13 +1181,13 @@ class Diagram(object):
                            flag_build_lists=False, flag_reset=False)
 
     def build_relationship_lists(self):
-        """Build inheritance and composition lists from parsed objects
+        """Build inheritance and aggregation lists from parsed objects
 
         This method successively calls the :func:`build_inheritance_list` and
-        :func:`build_composition_list` methods.
+        :func:`build_aggregation_list` methods.
         """
         self.build_inheritance_list()
-        self.build_composition_list()
+        self.build_aggregation_list()
 
     def parse_objects(self, header_file, arg_type='string'):
         """Parse objects
@@ -1239,8 +1239,8 @@ class Diagram(object):
                         self._inheritance_list.append(
                             ClassInheritanceRelationship(parent, obj_name))
 
-    def build_composition_list(self):
-        """Build list of composition relationships
+    def build_aggregation_list(self):
+        """Build list of aggregation relationships
 
         This method loops over objects and finds members with type
         corresponding to other classes defined in the `Diagram` object (keeping
@@ -1248,7 +1248,7 @@ class Diagram(object):
 
         The procedure first build an internal dictionary of relationships
         found, augmenting the count using the :func:`_augment_comp` function.
-        In a second phase, `ClassCompositionRelationship` objects are created
+        In a second phase, `ClassAggregationRelationship` objects are created
         for each relationships, using the calculated count.
         """
         # Build list of classes in diagram
@@ -1261,8 +1261,8 @@ class Diagram(object):
             obj_name = obj.get_name()
             if isinstance(obj, Class):
                 variable_type_list[obj_name] = obj.build_variable_type_list()
-        # Create composition links
-        composition_counts = {}
+        # Create aggregation links
+        aggregation_counts = {}
 
         for child_class in class_list:
             if child_class in variable_type_list.keys():
@@ -1270,25 +1270,25 @@ class Diagram(object):
                 for var_type in var_types:
                     for parent in class_list:
                         if re.search(r'\b' + parent + r'\b', var_type):
-                            self._augment_comp(composition_counts, parent,
+                            self._augment_comp(aggregation_counts, parent,
                                                child_class)
-        for obj_class, obj_comp_list in composition_counts.items():
+        for obj_class, obj_comp_list in aggregation_counts.items():
             for comp_parent, comp_count in obj_comp_list:
-                self._composition_list.append(
-                    ClassCompositionRelationship(obj_class, comp_parent,
+                self._aggregation_list.append(
+                    ClassAggregationRelationship(obj_class, comp_parent,
                                                  comp_count))
 
     def _augment_comp(self, c_dict, c_parent, c_child):
-        """Increment the composition reference count
+        """Increment the aggregation reference count
 
-        If the composition relationship is not in the list (``c_dict``), then
+        If the aggregation relationship is not in the list (``c_dict``), then
         add a new entry with count 1.  If the relationship is already in the
         list, then increment the count.
 
         Parameters
         ----------
         c_dict : dict
-            List of composition relationships.  For each dictionary key, a pair
+            List of aggregation relationships.  For each dictionary key, a pair
             of (str, int) elements: string and number of occurrences
         c_parent : str
             Parent class name
@@ -1310,7 +1310,7 @@ class Diagram(object):
 
         The string returned by this function should be ready to use with the
         PlantUML program.  It includes all the parsed objects with their
-        members, and the inheritance and composition relationships extracted
+        members, and the inheritance and aggregation relationships extracted
         from the list of objects.
 
         Returns
@@ -1330,8 +1330,8 @@ class Diagram(object):
         for inherit in self._inheritance_list:
             diagram_str += inherit.render() + '\n'
 
-        # Composition
-        for comp in self._composition_list:
+        # Aggregation
+        for comp in self._aggregation_list:
             diagram_str += comp.render() + '\n'
 
         # Postamble
@@ -2405,7 +2405,7 @@ The following source block converts the content of an org source block to rst
 format using the ~org-rst-convert-region-to-rst~ function.
 
 #+NAME: el-org-to-rst
-#+BEGIN_SRC emacs-lisp :var input="doc-intro" :results silent
+#+BEGIN_SRC emacs-lisp :var input="doc-usage" :results silent
 (save-excursion
   (let* ((temp-output-buffer "*tmp-org-to-rst*")
          (src-info (progn
