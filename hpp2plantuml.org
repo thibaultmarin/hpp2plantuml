@@ -90,7 +90,6 @@ block (adding either imports or dependency list used in [[#sec-package-setup-py]
 # %% Imports
 
 import re
-import operator
 import glob
 <<py-dependencies("import")>>
 #+END_SRC
@@ -2171,7 +2170,7 @@ upload-dir = doc/build/html
 ** REVIEW setup.py
    :PROPERTIES:
    :CUSTOM_ID: sec-package-setup-py
-   :header-args+: :tangle setup.py :noweb yes
+   :header-args:python+: :tangle setup.py :noweb yes
    :END:
 
 The =setup.py= file is the interface to =setuptools=.  It defines the packaging
@@ -2181,11 +2180,17 @@ options.  Most of it is taken from [[https://hynek.me/articles/sharing-your-labo
 #+BEGIN_SRC python
 
 # %% Imports
-import codecs
 import os
+import sys
 import re
+import codecs
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Command
+try:
+    import sphinx
+    import sphinx.apidoc
+except ImportError:
+    pass
 #+END_SRC
 
 *** REVIEW Custom content
@@ -2217,7 +2222,7 @@ CLASSIFIERS = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 INSTALL_REQUIRES = <<py-dependencies("requirements")>>
-
+SETUP_REQUIRES = ['sphinx']
 ###################################################################
 #+END_SRC
 
@@ -2256,6 +2261,37 @@ def find_meta(meta):
         return meta_match.group(1)
     raise RuntimeError("Unable to find __{meta}__ string.".format(meta=meta))
 
+# %% Sphinx Build
+
+
+class Sphinx(Command):
+    user_options = []
+    description = 'Build sphinx documentation'
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        metadata = self.distribution.metadata
+        src_dir = (self.distribution.package_dir or {'': ''})['']
+        src_dir = os.path.join(os.getcwd(),  src_dir)
+        sys.path.append('src')
+        print('pwd=', os.getcwd(), ' src-dir=', src_dir)
+        # Run sphinx by calling the main method, '--full' also adds a
+        # conf.py
+        sphinx.apidoc.main(
+            ['', '--private', '-H', metadata.name,
+             '-A', metadata.author,
+             '-V', metadata.version,
+             '-R', metadata.version,
+             '-o', os.path.join('doc', 'source'), src_dir]
+        )
+        # build the doc sources
+        sphinx.main(['', os.path.join('doc', 'source'),
+                     os.path.join('doc', 'build', 'html')])
 #+END_SRC
 
 
@@ -2288,11 +2324,13 @@ if __name__ == "__main__":
         zip_safe=False,
         classifiers=CLASSIFIERS,
         install_requires=INSTALL_REQUIRES,
+        setup_requires=SETUP_REQUIRES,
         test_suite='nose.collector',
         tests_require=['nose'],
         entry_points={
             'console_scripts': ['hpp2plantuml=hpp2plantuml.hpp2plantuml:main']
-        }
+        },
+        cmdclass={'sphinx': Sphinx}
     )
 
 #+END_SRC
@@ -2782,7 +2820,10 @@ format using the ~org-rst-convert-region-to-rst~ function.
 
 #+NAME: el-tangle-readme
 #+BEGIN_SRC emacs-lisp :var input="doc-intro" :results silent
-(org-export-to-file 'rst "doc/source/org-doc.rst")
+(let ((org-export-with-toc nil)
+      (org-export-with-todo-keywords nil)
+      (org-export-with-section-numbers nil))
+  (org-export-to-file 'rst "doc/source/org-doc.rst"))
 ;;(save-excursion
 ;;  (org-babel-goto-named-src-block "rst-README")
 ;;  (org-babel-tangle '(4)))
