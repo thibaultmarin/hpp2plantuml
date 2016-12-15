@@ -2222,7 +2222,7 @@ CLASSIFIERS = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 INSTALL_REQUIRES = <<py-dependencies("requirements")>>
-SETUP_REQUIRES = ['sphinx']
+SETUP_REQUIRES = ['sphinx', 'numpydoc']
 ###################################################################
 #+END_SRC
 
@@ -2295,7 +2295,7 @@ class Sphinx(Command):
 #+END_SRC
 
 
-*** REVIEW setup
+*** REVIEW Setup
 
 This final block passes all the relevant package information to =setuptools=:
 - package information: name, author, license, requirements,
@@ -2330,7 +2330,7 @@ if __name__ == "__main__":
         entry_points={
             'console_scripts': ['hpp2plantuml=hpp2plantuml.hpp2plantuml:main']
         },
-        cmdclass={'sphinx': Sphinx}
+        cmdclass={'sphinx': Sphinx}(ref:setup-sphinx)
     )
 
 #+END_SRC
@@ -2338,7 +2338,8 @@ if __name__ == "__main__":
 
 ** REVIEW README
 
-The README file is automatically generated from blocks defined in this org-file.
+The README file is automatically generated from blocks defined in this
+org-file (converted to RST format).
 
 #+NAME: rst-README
 #+BEGIN_SRC rst :noweb yes :tangle README.rst
@@ -2361,11 +2362,25 @@ Usage
    :CUSTOM_ID: sec-package-doc
    :END:
 
-# Sphinx
-- http://stackoverflow.com/questions/21149035/autogenerate-documentation-for-python-project-using-setuptools
+The module documentation is this org-file, which contains everything from the
+module code to tests packaging and documentation.
 
+In order to distribute the package on standard platforms, a RST documentation is
+also generated using [[http://sphinx-doc.org][Sphinx]].  The =setup.py= file contains a [[(setup-sphinx)][custom command]]
+"sphinx" to build the documentation.
+
+The documentation is composed of two parts:
+- this org-file is fully exported to RST,
+- the ~sphinx-api~ program is used to generate the module documentation from
+  docstrings in the code.
 
 *** Sphinx configuration
+
+Sphinx configuration is performed via the =conf.py= file.  An example
+configuration file can be generated using the =sphinx-quickstart= command.
+
+[[(sphinx-conf-path)]]
+[[(sphinx-conf--numpydoc)]]
 
 #+NAME: py-sphinx-conf
 #+BEGIN_SRC python :noweb yes :mkdirp yes :tangle doc/source/conf.py
@@ -2391,7 +2406,7 @@ Usage
 import os
 import sys
 # sys.path.insert(0, os.path.abspath('.'))
-sys.path.insert(0, os.path.abspath("../.."))
+sys.path.insert(0, os.path.abspath("../.."))(ref:sphinx-conf-path)
 
 # Customizations
 
@@ -2422,7 +2437,7 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
-    'numpydoc'
+    'numpydoc'(ref:sphinx-conf-numpydoc)
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -2738,7 +2753,11 @@ intersphinx_mapping = {'https://docs.python.org/': None}
 #+END_SRC
 
 
-*** Index page
+*** REVIEW Index page
+
+The index page is the entry point of the documentation.  It is formed by other
+parts of the org document including a brief description of the usage and links
+to the automatically generated and the org-file documents.
 
 #+NAME: doc-rst-index
 #+BEGIN_SRC rst :noweb yes :mkdirp yes :tangle doc/source/index.rst
