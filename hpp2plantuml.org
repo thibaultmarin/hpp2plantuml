@@ -105,13 +105,6 @@ The current version of the code is:
 #+NAME: hpp2plantuml-version
 : 0.0.dev0
 
-#+NAME: get-version
-#+BEGIN_SRC emacs-lisp :var ver=hpp2plantuml-version :var lang="python"
-(cond ((string= lang "python")
-       (format "'%s'" ver)))
-#+END_SRC
-
-
 #+NAME: doc-module
 #+BEGIN_SRC org
 The package relies on a layer of objects used as intermediate between the parsed
@@ -941,8 +934,8 @@ class ClassAggregationRelationship(ClassRelationship):
         :func:`ClassRelationship._render_link_type` to include a count near the
         end of the arrow.
         """
-        count_str = '' if self._count == 1 else ' "%d"' % self._count
-        return count_str + ' ' + LINK_TYPE_MAP[self._link_type]
+        count_str = '' if self._count == 1 else '"%d" ' % self._count
+        return count_str + LINK_TYPE_MAP[self._link_type]
 #+END_SRC
 
 
@@ -1225,6 +1218,7 @@ class Diagram(object):
         the list of available classes, their a `ClassInheritanceRelationship`
         object is added to the list.
         """
+        self._inheritance_list = []
         # Build list of classes in diagram
         class_list = [obj.get_name() for obj in self._objects
                       if isinstance(obj, Class)]
@@ -1252,6 +1246,7 @@ class Diagram(object):
         In a second phase, `ClassAggregationRelationship` objects are created
         for each relationships, using the calculated count.
         """
+        self._aggregation_list = []
         # Build list of classes in diagram
         class_list = [obj.get_name() for obj in self._objects
                       if isinstance(obj, Class)]
@@ -1484,6 +1479,9 @@ def CreatePlantUMLFile(file_list, output_file=None):
 
 
 ** REVIEW Command line interface
+   :PROPERTIES:
+   :CUSTOM_ID: sec-module-cmd
+   :END:
 
 The ~main~ function provides a minimal command line interface using =argparse=
 to parse input arguments.  The function passes the command line arguments to the
@@ -1508,7 +1506,8 @@ def main():
                         help='Output file')
     parser.add_argument('-i', '--input-file', dest='input_files',
                         action='append', metavar='HEADER-FILE', required=True,
-                        help='Input file')
+                        help='Input file (must be quoted' +
+                        ' when using wildcards)')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file)
@@ -1572,10 +1571,23 @@ produce a string output instead of writing to a text file.
 #+END_SRC
 
 
-* TODO Tests
+* REVIEW Tests
  :PROPERTIES:
  :header-args:python+: :tangle tests/test_hpp2plantuml.py
  :END:
+
+Testing is performed using the [[http://nose.readthedocs.io/en/latest/][nose]] framework.  The tests are defined in the
+=test_hpp2plantuml.py= file located in the test folder.  They can be run with
+the =python setup.py test= command.
+
+Two types of tests are considered: small scale tests for individual components,
+which are defined in org-tables (C++ source/reference output pairs) and tests on
+a large input header file.
+
+For the tests stored in org-tables, the pipe character "|" being a special
+character in org-mode, it is replaced by "@" in the tables and fixed in python.
+
+Following is the test setup code.
 
 #+NAME: test-setup
 #+BEGIN_SRC python
@@ -1583,7 +1595,10 @@ produce a string output instead of writing to a text file.
 
 # %% Imports
 
+
 import os
+import io
+import sys
 import re
 import nose.tools as nt
 import CppHeaderParser
@@ -1596,13 +1611,29 @@ test_fold = os.path.abspath(os.path.dirname(__file__))
 
 def get_parsed_element(input_str):
     return CppHeaderParser.CppHeader(input_str, argType='string')
+
+
+@nt.nottest
+def fix_test_list_def(test_list):
+    test_list_out = []
+    for test_entry in test_list:
+        test_entry_out = []
+        for test_str in test_entry:
+            test_entry_out.append(re.sub(u'@', '|', test_str))
+        test_list_out.append(test_entry_out)
+    return test_list_out
 #+END_SRC
 
-** TODO Unit tests
+** REVIEW Module tests
 
-*** TODO Container
+The module tests are not strictly speaking unit tests, as they rely on parsing
+of a header file, but they aim at evaluating simple functionality of the
+different modules implemented.
 
-Test elementary operations of the ~Container~ class.
+*** REVIEW Container
+
+The test for the ~Container~ class tests elementary functionality: members and
+sorting keys.
 
 #+NAME: test-unit-container
 #+BEGIN_SRC python
@@ -1635,22 +1666,24 @@ class TestContainer:
                             c_list[ref_sort_idx[i]][1])
 #+END_SRC
 
+
 *** TODO Class
 
-Unit testing for classes is performed by parsing minimal C++ code segments and
+Testing for classes is performed by parsing minimal C++ code segments and
 comparing the rendered text to a reference.  The input/output pairs are stored
-in org-table and tangled to test files.  Adding tests should be as simple as
-adding rows to the table.
+in an org-table and tangled to test files.  Adding tests should be as simple as
+adding rows to the table, with the constraint that each test should be contained
+in a single row of the table.
 
 
-**** TODO Class variable
+**** REVIEW Class variable
 
-Class variables have simple functionality.  The following table
-(Table{{{tt}}}[[tbl-unittest-class_var]]) defines tests that validate representation
-of variables' scope and type.
+Class variables have simple functionality (name, type and scope).  The following
+table (Table{{{tt}}}[[tbl-unittest-class_var]]) defines tests that validate
+the representation of variables.
 
 #+NAME: tbl-unittest-class_var
-#+CAPTION: List of test segments and corresponding PlantUML input strings.
+#+CAPTION: List of test segments and corresponding PlantUML strings.
 | "class Test {\npublic:\nint p_member; };"     | "+p_member : int"  |
 | "class Test {\nprivate:\nint * p_member; };"  | "-p_member : int*" |
 | "class Test {\nprotected:\nint &p_member; };" | "#p_member : int&" |
@@ -1658,10 +1691,13 @@ of variables' scope and type.
 
 #+NAME: test-unit-class_var
 #+BEGIN_SRC python :var test_list_classvar=tbl-unittest-class_var
+# %% Test class variables
+
+
 class TestClassVariable:
     def test_list_entries(self):
         for test_idx, (input_str, output_ref_str) in \
-            enumerate(test_list_classvar):
+            enumerate(fix_test_list_def(test_list_classvar)):
             p = get_parsed_element(input_str)
             class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
                                 input_str.replace('\n', ' '))
@@ -1674,14 +1710,14 @@ class TestClassVariable:
 #+END_SRC
 
 
-**** TODO Class method
+**** REVIEW Class method
 
 The tests for class methods are listed in
 Table{{{tt}}}[[tbl-unittest-class_method]].  Note that template methods are not
-supported but PlantUML.
+supported by PlantUML.
 
 #+NAME: tbl-unittest-class_method
-#+CAPTION: List of test segments and corresponding PlantUML input strings.
+#+CAPTION: List of test segments and corresponding PlantUML strings.
 | "class Test {\npublic:\nint & func(int * a); };"                         | "+func(int* a) : int&"         |
 | "class Test {\npublic:\nstatic int func(int & a); };"                    | "+{static} func(int& a) : int" |
 | "class Test {\nprivate:\nvirtual int * func() = 0; };"                   | "-{abstract} func() : int*"    |
@@ -1691,10 +1727,13 @@ supported but PlantUML.
 
 #+NAME: test-unit-class_method
 #+BEGIN_SRC python :var test_list_classmethod=tbl-unittest-class_method
+# %% Test class methods
+
+
 class TestClassMethod:
     def test_list_entries(self):
         for test_idx, (input_str, output_ref_str) in \
-            enumerate(test_list_classmethod):
+            enumerate(fix_test_list_def(test_list_classmethod)):
             p = get_parsed_element(input_str)
             class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
                                 input_str.replace('\n', ' '))
@@ -1707,13 +1746,13 @@ class TestClassMethod:
 #+END_SRC
 
 
-**** TODO Class
+**** REVIEW Class
 
 The unit test for classes includes rendering tests for the code segments in
-Table{{{tt}}}[[tbl-unittest-class]].
+Table{{{tt}}}[[tbl-unittest-class]].  It includes templates and abstract classes.
 
 #+NAME: tbl-unittest-class
-#+CAPTION: List of test segments and corresponding PlantUML input strings.
+#+CAPTION: List of test segments and corresponding PlantUML strings.
 | "class Test {\nprotected:\nint & p_member; };"                     | "class Test {\n\t#p_member : int&\n}\n"                                               |
 | "class Test\n{\npublic:\nvirtual int func() = 0; };"               | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                              |
 | "template <typename T> class Test{\nT* func(T& arg); };"           | "class Test <template <typename T>> {\n\t-func(T& arg) : T*\n}\n"                     |
@@ -1722,10 +1761,13 @@ Table{{{tt}}}[[tbl-unittest-class]].
 
 #+NAME: test-unit-class
 #+BEGIN_SRC python :var test_list_class=tbl-unittest-class
+# %% Test classes
+
+
 class TestClass:
     def test_list_entries(self):
         for test_idx, (input_str, output_ref_str) in \
-            enumerate(test_list_class):
+            enumerate(fix_test_list_def(test_list_class)):
             p = get_parsed_element(input_str)
             class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
                                 input_str.replace('\n', ' '))
@@ -1737,23 +1779,26 @@ class TestClass:
 #+END_SRC
 
 
-*** TODO Enum
+*** REVIEW Enum
 
 The unit test for enum objects includes rendering tests for the code segments in
 Table{{{tt}}}[[tbl-unittest-enum]].
 
 #+NAME: tbl-unittest-enum
-#+CAPTION: List of test segments and corresponding PlantUML input strings.
+#+CAPTION: List of test segments and corresponding PlantUML strings.
 | "enum Test { A, B, CD, E };"        | "enum Test {\n\tA\n\tB\n\tCD\n\tE\n}\n" |
 | "enum Test\n{\n A = 0, B = 12\n };" | "enum Test {\n\tA\n\tB\n}\n"            |
 
 
 #+NAME: test-unit-enum
 #+BEGIN_SRC python :var test_list_enum=tbl-unittest-enum
+# %% Test enum objects
+
+
 class TestEnum:
     def test_list_entries(self):
         for test_idx, (input_str, output_ref_str) in \
-            enumerate(test_list_enum):
+            enumerate(fix_test_list_def(test_list_enum)):
             p = get_parsed_element(input_str)
             enum_name = re.sub(r'.*enum\s*(\w+).*', r'\1',
                                input_str.replace('\n', ' '))
@@ -1765,9 +1810,57 @@ class TestEnum:
 #+END_SRC
 
 
-** TODO Full system test
+*** REVIEW Links
 
-*** TODO Input files
+The unit test for link objects includes rendering tests for the code segments in
+Table{{{tt}}}[[tbl-unittest-link]].  It tests inheritance and aggregation
+relationships (with and without count).
+
+
+#+NAME: tbl-unittest-link
+#+CAPTION: List of test segments and corresponding PlantUML strings.
+| "class A{};\nclass B : A{};"           | "A <@-- B"     |
+| "class A{};\nclass B : public A{};"    | "A <@-- B"     |
+| "class B{};\nclass A{B obj;};"         | "A o-- B"       |
+| "class B{};\nclass A{B obj; B* ptr;};" | "A \"2\" o-- B" |
+
+
+#+NAME: test-unit-link
+#+BEGIN_SRC python :var test_list_link=tbl-unittest-link
+class TestLink:
+    def test_list_entries(self):
+        for test_idx, (input_str, output_ref_str) in \
+            enumerate(fix_test_list_def(test_list_link)):
+            obj_d = hpp2plantuml.Diagram()
+            # Not very unittest-y
+            obj_d.create_from_string(input_str)
+            if len(obj_d._inheritance_list) > 0:
+                obj_l = obj_d._inheritance_list[0]
+            elif len(obj_d._aggregation_list) > 0:
+                obj_l = obj_d._aggregation_list[0]
+            nt.assert_equal(output_ref_str, obj_l.render(),
+                            'Test {0} failed [input: {1}]'.format(test_idx,
+                                                                  input_str))
+#+END_SRC
+
+
+** REVIEW Full system test
+
+The system test uses example header files and validates the PlantUML string
+rendering compared to a saved reference.
+
+*** REVIEW Input files
+    :PROPERTIES:
+    :CUSTOM_ID: sec-test-system-hpp
+    :END:
+
+The header is split into two files, in order to test the ability to load
+multiple inputs.  It contains a mix of abstract, template classes with members
+of different scope and with different properties (static, abstract methods,
+etc.).
+
+The following can be extended to improve testing, as long as the corresponding
+[[#sec-test-system-ref][reference output]] is kept up-to-date.
 
 #+NAME: hpp-simple-classes-1-2
 #+BEGIN_SRC c++ :mkdirp yes :tangle tests/simple_classes_1_2.hpp
@@ -1806,6 +1899,7 @@ public:
 	~Class03();
 private:
 	Class01* _obj;
+	Class01* _data;
 	list<Class02> _obj_list;
 	T* _typed_obj;
 };
@@ -1813,7 +1907,13 @@ private:
 
 
 
-*** TODO Reference output
+*** REVIEW Reference output
+    :PROPERTIES:
+    :CUSTOM_ID: sec-test-system-ref
+    :END:
+
+Following is the reference output for the input header files defined [[#sec-test-system-hpp][earlier]].
+The comparison takes into account the white space, indentation, etc.
 
 
 #+NAME: puml-simple-classes
@@ -1841,6 +1941,7 @@ class Class02 {
 class Class03 <template<typename T>> {
 	+Class03()
 	+~Class03()
+	-_data : Class01*
 	-_obj : Class01*
 	-_typed_obj : T*
 	-_obj_list : list<Class02>
@@ -1853,23 +1954,36 @@ enum Enum01 {
 }
 
 Class01 <|-- Class02
-Class03  o-- Class01
-Class03  o-- Class02
+Class03 "2" o-- Class01
+Class03 o-- Class02
 
 @enduml
 #+END_SRC
 
 
-*** TODO Test diagram generation
+*** REVIEW Test diagram generation
+
+The system test validates the following:
+- input from multiple files, with and without wildcards,
+- interfaces to the ~Diagram~ class listed in
+  Table{{{tt}}}[[tbl-diagram-interface]],
+- object reset,
+- the ~CreatePlantUMLFile~ interface, including stdout and file output.
+
 
 #+NAME: test-full-diagram
 #+BEGIN_SRC python
+# %% Test overall system
+
 
 class TestFullDiagram():
 
     def __init__(self):
         self._input_files = ['simple_classes_1_2.hpp', 'simple_classes_3.hpp']
         self._input_files_w = ['simple_classes_*.hpp', 'simple_classes_3.hpp']
+        self._diag_saved_ref = ''
+        with open(os.path.join(test_fold, 'simple_classes.puml'), 'rt') as fid:
+            self._diag_saved_ref = fid.read()
 
     def test_full_files(self):
         # Create first version
@@ -1880,9 +1994,7 @@ class TestFullDiagram():
         diag_render_ref = diag_ref.render()
 
         # Compare to saved reference
-        with open(os.path.join(test_fold, 'simple_classes.puml'), 'rt') as fid:
-            diag_saved_ref = fid.read()
-        nt.assert_equal(diag_saved_ref, diag_render_ref)
+        nt.assert_equal(self._diag_saved_ref, diag_render_ref)
 
         # # Validate equivalent inputs
 
@@ -1890,18 +2002,47 @@ class TestFullDiagram():
         for file_list in [self._input_files, self._input_files_w]:
             file_list_c = list(set(hpp2plantuml.hpp2plantuml.expand_file_list(
                 [os.path.join(test_fold, f) for f in file_list])))
+
+            # Create from file list
             diag_c = hpp2plantuml.Diagram()
             diag_c.create_from_file_list(file_list_c)
             nt.assert_equal(diag_render_ref, diag_c.render())
+
+            # Add from file list
+            diag_c_add = hpp2plantuml.Diagram()
+            diag_c_add.add_from_file_list(file_list_c)
+            diag_c_add.build_relationship_lists()
+            diag_c_add.sort_elements()
+            nt.assert_equal(diag_render_ref, diag_c_add.render())
+
+            # Create from first file, add from rest of the list
+            diag_c_file = hpp2plantuml.Diagram()
+            diag_c_file.create_from_file(file_list_c[0])
+            for file_c in file_list_c[1:]:
+                diag_c_file.add_from_file(file_c)
+            diag_c_file.build_relationship_lists()
+            diag_c_file.sort_elements()
+            nt.assert_equal(diag_render_ref, diag_c_file.render())
 
         # String inputs
         input_str_list = []
         for file_c in file_list_ref:
             with open(file_c, 'rt') as fid:
                 input_str_list.append(fid.read())
+
+        # Create from string list
         diag_str_list = hpp2plantuml.Diagram()
         diag_str_list.create_from_string_list(input_str_list)
         nt.assert_equal(diag_render_ref, diag_str_list.render())
+
+        # Add from string list
+        diag_str_list_add = hpp2plantuml.Diagram()
+        diag_str_list_add.add_from_string_list(input_str_list)
+        diag_str_list_add.build_relationship_lists()
+        diag_str_list_add.sort_elements()
+        nt.assert_equal(diag_render_ref, diag_str_list_add.render())
+
+        # Create from string
         diag_str = hpp2plantuml.Diagram()
         diag_str.create_from_string('\n'.join(input_str_list))
         nt.assert_equal(diag_render_ref, diag_str.render())
@@ -1921,12 +2062,53 @@ class TestFullDiagram():
         diag_manual_add.build_relationship_lists()
         diag_manual_add.sort_elements()
         nt.assert_equal(diag_render_ref, diag_manual_add.render())
+
+    def test_main_function(self):
+
+        # List files
+        file_list = [os.path.join(test_fold, f) for f in self._input_files]
+
+        # Output to string
+        with io.StringIO() as io_stream:
+            sys.stdout = io_stream
+            hpp2plantuml.CreatePlantUMLFile(file_list)
+            io_stream.seek(0)
+            # Read string output, exclude final line return
+            output_str = io_stream.read()[:-1]
+        sys.stdout = sys.__stdout__
+        nt.assert_equal(self._diag_saved_ref, output_str)
+
+        # Output to file
+        output_fname = 'output.puml'
+        hpp2plantuml.CreatePlantUMLFile(file_list, output_fname)
+        output_fcontent = ''
+        with open(output_fname, 'rt') as fid:
+            output_fcontent = fid.read()
+        nt.assert_equal(self._diag_saved_ref, output_fcontent)
+        os.unlink(output_fname)
 #+END_SRC
 
 
 * TODO Packaging
 
-** TODO __init__.py
+In order to publish the hpp2plantuml module to [[https://pypi.python.org/pypi][PyPI]], the =setuptools= package
+was used.
+
+The following guides summarize the packaging process and provide useful
+examples:
+- https://hynek.me/articles/sharing-your-labor-of-love-pypi-quick-and-dirty/
+- https://python-packaging.readthedocs.io/en/latest/
+- https://packaging.python.org/distributing/
+
+
+** REVIEW __init__.py
+
+The module's init file simply defines meta variables required by =setuptools=.
+It also imports the main interface: the ~CreatePlantUMLFile~ function and the
+~Diagram~ class for use as a module.
+
+The header is filled with the content of org-mode blocks.  The version number is
+obtained using the source block described [[#sec-org-el-version][here]].
 
 #+NAME: py-init
 #+BEGIN_SRC python :noweb yes :tangle src/hpp2plantuml/__init__.py
@@ -1941,14 +2123,11 @@ Usage:
 
 __title__ = "hpp2plantuml"
 __description__ = "Convert C++ header files to PlantUML"
-
 __version__ = <<get-version()>>
 __uri__ = "https://hpp2plantuml.readthedocs.io/"
 __doc__ = __description__ + " <" + __uri__ + ">"
-
 __author__ = "Thibault Marin"
 __email__ = "thibault.marin@gmx.com"
-
 __license__ = "MIT"
 __copyright__ = "Copyright (c) 2016 Thibault Marin"
 
@@ -1959,7 +2138,15 @@ __all__ = ['CreatePlantUMLFile', 'Diagram']
 #+END_SRC
 
 
-** TODO setup.cfg
+** REVIEW setup.cfg
+
+The =setup.cfg= file defines some basic properties of the package.  It forces
+"universal" wheel builds, sets the license file and defines documentation
+commands.
+
+The [[#sec-package-doc][documentation]] uses [[http://sphinx-doc.org][Sphinx]] to generate the HTML documentation.  The
+~build_sphinx~ configuration defines the location for the input and output
+documentation files.
 
 #+NAME: cfg-setup
 #+BEGIN_SRC conf :tangle setup.cfg
@@ -1981,13 +2168,17 @@ upload-dir = doc/build/html
 #+END_SRC
 
 
-** TODO setup.py
+** REVIEW setup.py
    :PROPERTIES:
    :CUSTOM_ID: sec-package-setup-py
+   :header-args+: :tangle setup.py :noweb yes
    :END:
 
-#+NAME: py-setup
-#+BEGIN_SRC python :noweb yes :tangle setup.py
+The =setup.py= file is the interface to =setuptools=.  It defines the packaging
+options.  Most of it is taken from [[https://hynek.me/articles/sharing-your-labor-of-love-pypi-quick-and-dirty/][this post]].
+
+#+NAME: py-setup-import
+#+BEGIN_SRC python
 
 # %% Imports
 import codecs
@@ -1995,7 +2186,14 @@ import os
 import re
 
 from setuptools import setup, find_packages
+#+END_SRC
 
+*** REVIEW Custom content
+
+The non-boiler part of the =setup.py= file defines the package information.
+
+#+NAME: py-setup-custom
+#+BEGIN_SRC python
 # %% Custom fields
 
 ###################################################################
@@ -2021,6 +2219,15 @@ CLASSIFIERS = [
 INSTALL_REQUIRES = <<py-dependencies("requirements")>>
 
 ###################################################################
+#+END_SRC
+
+
+*** REVIEW Helper functions
+
+The helper functions provide functions to extra metadata from the init file.
+
+#+NAME: py-setup-helper
+#+BEGIN_SRC python
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 
@@ -2049,6 +2256,19 @@ def find_meta(meta):
         return meta_match.group(1)
     raise RuntimeError("Unable to find __{meta}__ string.".format(meta=meta))
 
+#+END_SRC
+
+
+*** REVIEW setup
+
+This final block passes all the relevant package information to =setuptools=:
+- package information: name, author, license, requirements,
+- source code location,
+- testing framework,
+- console script: the package installs the =hpp2plantuml= [[#sec-module-cmd][command]].
+
+#+NAME: py-setup-main
+#+BEGIN_SRC python
 
 if __name__ == "__main__":
     setup(
@@ -2078,8 +2298,9 @@ if __name__ == "__main__":
 #+END_SRC
 
 
-** TODO README
+** REVIEW README
 
+The README file is automatically generated from blocks defined in this org-file.
 
 #+NAME: rst-README
 #+BEGIN_SRC rst :noweb yes :tangle README.rst
@@ -2098,6 +2319,13 @@ Usage
 
 
 ** TODO Documentation
+   :PROPERTIES:
+   :CUSTOM_ID: sec-package-doc
+   :END:
+
+# Sphinx
+- http://stackoverflow.com/questions/21149035/autogenerate-documentation-for-python-project-using-setuptools
+
 
 *** Sphinx configuration
 
@@ -2514,6 +2742,21 @@ Indices and tables
 
 * TODO Org-mode setup
 
+** REVIEW Version string
+   :PROPERTIES:
+   :CUSTOM_ID: sec-org-el-version
+   :END:
+
+The following source block is used to get the module's version number from other
+source blocks.
+
+#+NAME: get-version
+#+BEGIN_SRC emacs-lisp :var ver=hpp2plantuml-version :var lang="python"
+(cond ((string= lang "python")
+       (format "'%s'" ver)))
+#+END_SRC
+
+
 ** REVIEW org-to-rst
 
 The following source block converts the content of an org source block to rst
@@ -2531,7 +2774,7 @@ format using the ~org-rst-convert-region-to-rst~ function.
       (insert src-content)
       (mark-whole-buffer)
       (org-rst-convert-region-to-rst)
-      (replace-regexp-in-string "\n$" "" (buffer-string)))))
+      (buffer-string))))
 #+END_SRC
 
 
