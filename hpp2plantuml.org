@@ -5,13 +5,15 @@
 #+PROPERTY: header-args+ :exports code :results silent
 #+PROPERTY: header-args:python+ :tangle src/hpp2plantuml/hpp2plantuml.py :mkdirp yes
 
+The current version of the code is:
+#+NAME: hpp2plantuml-version
+: 0.0.dev0
+
 * REVIEW Motivation
   :PROPERTIES:
   :CUSTOM_ID: sec-intro
   :END:
 
-#+NAME: doc-intro
-#+BEGIN_SRC org
 The purpose of this tool is to convert C++ header files to a UML representation
 in [[https://plantuml.com][PlantUML]] syntax that can be used to generate with PlantUML.
 
@@ -25,7 +27,6 @@ hierarchies.  It aims at supporting:
   basic qualifiers (~static~, abstract),
 - inheritance relationships,
 - aggregation relationships (very basic support).
-#+END_SRC
 
 
 * REVIEW License
@@ -99,13 +100,10 @@ with [[http://sphinx-doc.org][Sphinx]].
 
 
 * REVIEW Module source code
+  :PROPERTIES:
+  :CUSTOM_ID: sec-module
+  :END:
 
-The current version of the code is:
-#+NAME: hpp2plantuml-version
-: 0.0.dev0
-
-#+NAME: doc-module
-#+BEGIN_SRC org
 The package relies on a layer of objects used as intermediate between the parsed
 header files (parsed using ~CppHeaderParser~) and the text output for use with
 PlantUML.
@@ -119,8 +117,8 @@ instantiation time from the parsed header via the ~parse_members~ method.
 Conversion to text input in PlantUML syntax is performed by the ~render~ method.
 
 Relationships between objects are extracted from a ~Diagram~ object by listing
-inheritance properties and parsing member types into [[#sec-module-relationship][relationship objects]].
-#+END_SRC
+inheritance properties and parsing member types into
+[[#sec-module-relationship][relationship objects]].
 
 
 ** REVIEW String representation constants
@@ -963,6 +961,7 @@ The interface methods and their behavior are summarized in
 Table{{{tt}}}[[tbl-diagram-interface]].
 
 #+NAME: tbl-diagram-interface
+#+CAPTION: Public interface for populating a ~Diagram~ object.
 | Method name             | input type | input list? | reset? | sort? | build lists? |
 |-------------------------+------------+-------------+--------+-------+--------------|
 | create_from_file        | file       | no          | yes    | yes   | yes          |
@@ -1520,20 +1519,19 @@ if __name__ == '__main__':
 
 
 * REVIEW Usage
-
-#+NAME: doc-usage
-#+BEGIN_SRC org
+  :PROPERTIES:
+  :CUSTOM_ID: sec-module-usage
+  :END:
 
 The ~hpp2plantuml~ package can be used from the command line or as a module in
 other applications.
 
-
-,* Command line
+** Command line
 
 The command line usage is (~hpp2plantuml --help~):
 
 
-,#+BEGIN_EXAMPLE
+#+BEGIN_EXAMPLE
 usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
 
 hpp2plantuml tool.
@@ -1544,7 +1542,7 @@ optional arguments:
                         Output file
   -i HEADER-FILE, --input-file HEADER-FILE
                         Input file (must be quoted when using wildcards)
-,#+END_EXAMPLE
+#+END_EXAMPLE
 
 
 Input files are added using the ~-i~ option.  Inputs can be file paths or
@@ -1554,21 +1552,21 @@ output is a text file following the PlantUML syntax.
 For instance, the following command will generate the input file for PlantUML
 from several header files and store the output to the =output.puml= file.
 
-,#+NAME: usage-sh
-,#+BEGIN_SRC sh
+#+NAME: usage-sh
+#+BEGIN_SRC sh
 hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
-,#+END_SRC
+#+END_SRC
 
 Note that the double quotes are required when using wildcards.
 
-,* Module
+
+** Module
 
 To use as a module, simply ~import hpp2plantuml~.  The ~CreatePlantUMLFile~ can
 then be used to create a PlantUML file from a set of input files.
 Alternatively, the ~Diagram~ object can be used directly to build internal
 objects (from files or strings).  The ~Diagram.render()~ method can be used to
 produce a string output instead of writing to a text file.
-#+END_SRC
 
 
 * REVIEW Tests
@@ -2114,11 +2112,11 @@ obtained using the source block described [[#sec-org-el-version][here]].
 #+BEGIN_SRC python :noweb yes :tangle src/hpp2plantuml/__init__.py
 """ hpp2plantuml module
 
-<<doc-module>>
+<<el-org-exp("sec-module", "rst")>>
 
 Usage:
 
-<<doc-module-usage>>
+<<el-org-exp("sec-module-usage", "rst", "keep")>>
 """
 
 __title__ = "hpp2plantuml"
@@ -2348,12 +2346,12 @@ org-file (converted to RST format).
 hpp2plantuml - Convert C++ header files to PlantUML
 ===================================================
 
-<<el-org-to-rst("doc-intro")>>
+<<el-org-exp("sec-intro", "rst")>>
 
 Usage
 -----
 
-<<el-org-to-rst("doc-usage")>>
+<<el-org-exp("sec-usage", "rst")>>
 
 #+END_SRC
 
@@ -2773,12 +2771,12 @@ hpp2plantuml documentation
 .. toctree::
    :maxdepth: 4
 
-<<el-org-to-rst("doc-intro")>>
+<<el-org-exp("sec-intro", "rst")>>
 
 Usage
 -----
 
-<<el-org-to-rst("doc-usage")>>
+<<el-org-exp("sec-usage", "rst")>>
 
 Module documentation generated from docstrings
 ----------------------------------------------
@@ -2802,13 +2800,18 @@ Indices and tables
 
 * TODO Org-mode setup
 
+The generation of the package code depends on org-mode, mostly to expand blocks
+with the [[http://orgmode.org/manual/Noweb-reference-syntax.html][=noweb=]] interface.  The following defines helper functions to simplify
+this process.
+
 ** REVIEW Version string
    :PROPERTIES:
    :CUSTOM_ID: sec-org-el-version
    :END:
 
 The following source block is used to get the module's version number from other
-source blocks.
+source blocks.  This allows for the version number to be set in [[hpp2plantuml-version][one place]] and
+include at multiple locations.
 
 #+NAME: get-version
 #+BEGIN_SRC emacs-lisp :var ver=hpp2plantuml-version :var lang="python"
@@ -2820,67 +2823,78 @@ source blocks.
 ** REVIEW org-to-rst
 
 The following source block converts the content of an org source block to rst
-format using the ~org-rst-convert-region-to-rst~ function.
+format using the [[(rst-convert-region)][~org-rst-convert-region-to-rst~]] function.  The source block to
+process is passed by its name (as a string).
 
-#+NAME: el-org-to-rst
-#+BEGIN_SRC emacs-lisp :var input="doc-usage" :results silent
+#+NAME: el-org-exp
+#+BEGIN_SRC emacs-lisp -r :var input="sec-usage" :var lang="rst" :var children="remove" :results silent
 (save-excursion
-  (let* ((temp-output-buffer "*tmp-org-to-rst*")
-         (src-info (progn
-                     (org-babel-goto-named-src-block input)
-                     (org-babel-get-src-block-info t)))
-         (src-content (car (cdr src-info))))
-    (with-temp-buffer
-      (insert src-content)
-      (mark-whole-buffer)
-      (org-rst-convert-region-to-rst)
-      (buffer-string))))
-#+END_SRC
-
-
-** TODO Tangling
-
-#+NAME: derived-backend
-#+BEGIN_SRC emacs-lisp
-(defun custom-rst-filter-org-block (text backend info)
-  (when (org-export-derived-backend-p backend 'rst)
-    (let* ((pattern ".*\.\. code-block:: \\([[:alnum:]]+\\)")
-           (lang (progn
-                   (string-match pattern text)
-                   (match-string 1 text))))
-      (cond ((string= lang "org")
-             (with-temp-buffer
-               (insert (replace-regexp-in-string (concat pattern ".*$") "" text))
-               (mark-whole-buffer)
-               (org-rst-convert-region-to-rst)
-               (buffer-string)))
-            ((member lang '("conf" "plantuml"))
-             (replace-regexp-in-string (concat pattern ".*$") "::\n" text))
-            (t text)))))
-
-(add-to-list 'org-export-filter-src-block-functions
-             'custom-rst-filter-org-block)
-#+END_SRC
-
-
-#+NAME: el-tangle-readme
-#+BEGIN_SRC emacs-lisp :var input="doc-intro" :results silent
-(require 'ox-rst)
-(let ((org-export-with-toc nil)
-      (org-export-with-todo-keywords nil)
-      (org-export-with-section-numbers nil)
-      (org-export-with-broken-links t))
-  (org-export-to-file 'rst "doc/source/org-doc.rst"))
-;;(save-excursion
-;;  (org-babel-goto-named-src-block "rst-README")
-;;  (org-babel-tangle '(4)))
+  (let ((org-tree (org-element-parse-buffer)))
+    (org-element-map
+        org-tree 'headline
+      (lambda (r)
+        (let ((cid (org-element-property :CUSTOM_ID r)))
+          ;; Find desired heading (identified by CUSTOM_ID)
+          (when (string= cid input)
+            (when (string= children "remove")
+              ;; Remove all children
+              (org-element-map (org-element-contents r) 'headline
+                (lambda (subr)
+                  (org-element-extract-element subr))))
+            (let ((out-text (org-element-interpret-data r)))
+                  ;; Convert to output format
+                  (cond ((string= lang "rst")
+                         (with-temp-buffer
+                           (insert out-text)
+                           (mark-whole-buffer)
+                           (let ((org-export-with-toc nil)
+                                 (org-export-with-todo-keywords nil)
+                                 (org-export-with-section-numbers nil)
+                                 (org-export-with-broken-links t))
+                             (org-rst-convert-region-to-rst))(ref:rst-convert-region)
+                           (buffer-string)))
+                        ((string= lang "python")
+                         out-text))))))
+      nil t)))
 #+END_SRC
 
 
 ** TODO Generate documentation
 
-- One run to export to rst (ox-rst)
-- One run to export README.rst
+This org-file can be exported to rst and added to the package documentation
+generated by sphinx.  This is performed using org's [[http://orgmode.org/manual/Advanced-configuration.html][filtering functionality]].
+The [[(el-rst-filter)][~custom-rst-filter-org-block~]] function defines the filter responsible for
+post-processing source blocks when exporting to rst.  It has two main
+objectives:
+- fix languages unknown to sphinx (which relies on [[http://pygments.org/][the pygmentize program]] for
+  syntax highlighting) such as =plantuml= and org's =conf= blocks,
+- convert org source blocks to rst before export.
+
+#+NAME: ox-rst-filter-src
+#+BEGIN_SRC emacs-lisp -r
+(defun custom-rst-filter-org-block (text backend info)(ref:el-rst-filter)
+  (when (org-export-derived-backend-p backend 'rst)
+    (let* ((pattern ".*\.\. code-block:: \\([[:alnum:]]+\\)")
+           (pattern-line (concat pattern ".*$"))
+           (lang (progn
+                   (string-match pattern text)
+                   (match-string 1 text))))
+      (cond ((member lang '("conf" "plantuml"))
+             (replace-regexp-in-string pattern-line "::\n" text))
+            (t text)))))
+#+END_SRC
+
+#+NAME: el-tangle-readme
+#+BEGIN_SRC emacs-lisp :results silent
+(require 'ox-rst)
+(let ((org-export-with-toc nil)
+      (org-export-with-todo-keywords nil)
+      (org-export-with-section-numbers nil)
+      (org-export-with-broken-links t)
+      (org-export-filter-src-block-functions
+       '(custom-rst-filter-org-block)))
+  (org-export-to-file 'rst "doc/source/org-doc.rst"))
+#+END_SRC
 
 
 ** TODO Blog post setup
@@ -2888,24 +2902,25 @@ format using the ~org-rst-convert-region-to-rst~ function.
 
 * Notes                                                            :noexport:
 
+- [-] Add tests
+  - [ ] Add test coverage report to documentation (full test from within org-mode?)
+  - [ ] Test structs
+  - [X] Unit tests
+  - [X] Full diagram test
+- [ ] Extra files for package
+  - [ ] MANIFEST.in?
+- [X] Fix export of org blocks
 - [X] Code
   - [X] Add docstrings
   - [X] Add structs
-- [-] Add tests
-  - [ ] Unit tests
-  - [X] Full diagram test
-  - [ ] Add test coverage report to documentation
-  - [ ] Test structs
-- [-] setup.py
+- [X] setup.py
   - [X] install doesn't do anything
   - [X] add script to install
-  - [ ] add build doc command
-- [-] conf.py (sphinx)
+  - [X] add build doc command
+- [X] conf.py (sphinx)
   - [X] Include both automatically generated documentation (from docstrings) and
     org file
-  - [ ] Render org blocks as regular text
-- [ ] Extra files for package
-  - [ ] MANIFEST.in?
+  - [X] Render org blocks as regular text
 - [X] Write elisp function which:
   - [X] tangles source files
   - [X] creates documentation rst (and README.rst)
