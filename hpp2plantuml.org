@@ -1363,7 +1363,7 @@ This section briefly describes the helper functions defined in the module.
 *** REVIEW Sanitize type string
 
 The ~_cleanup_type~ function tries to unify the string representation of types
-by eliminating spaces =*= characters.
+by eliminating spaces around =*= characters.
 
 #+NAME: py-helper-cleanup-str
 #+BEGIN_SRC python
@@ -1534,7 +1534,7 @@ The command line usage is (~hpp2plantuml --help~):
 
 
 ,#+BEGIN_EXAMPLE
-usage: command_line.py [-h] -o FILE -i HEADER-FILE
+usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
 
 hpp2plantuml tool.
 
@@ -1543,7 +1543,7 @@ optional arguments:
   -o FILE, --output-file FILE
                         Output file
   -i HEADER-FILE, --input-file HEADER-FILE
-                        Input file
+                        Input file (must be quoted when using wildcards)
 ,#+END_EXAMPLE
 
 
@@ -1556,9 +1556,10 @@ from several header files and store the output to the =output.puml= file.
 
 ,#+NAME: usage-sh
 ,#+BEGIN_SRC sh
-hpp2plantuml -i File_1.hpp -i include/Helper_*.hpp -o output.puml
+hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 ,#+END_SRC
 
+Note that the double quotes are required when using wildcards.
 
 ,* Module
 
@@ -2382,7 +2383,7 @@ content of the file is mostly following the defaults, with a few exceptions:
 - the system path is modified to include the path to the package source code
   ([[(sphinx-conf-path)]]),
 - the =numpydoc= package is used to render the docstrings
-  ([[(sphinx-conf--numpydoc)]]).
+  ([[(sphinx-conf-numpydoc)]]).
 
 #+NAME: py-sphinx-conf
 #+BEGIN_SRC python :noweb yes :mkdirp yes :tangle doc/source/conf.py
@@ -2848,7 +2849,11 @@ format using the ~org-rst-convert-region-to-rst~ function.
                    (string-match pattern text)
                    (match-string 1 text))))
       (cond ((string= lang "org")
-             (replace-regexp-in-string (concat pattern ".*$") "" text))
+             (with-temp-buffer
+               (insert (replace-regexp-in-string (concat pattern ".*$") "" text))
+               (mark-whole-buffer)
+               (org-rst-convert-region-to-rst)
+               (buffer-string)))
             ((member lang '("conf" "plantuml"))
              (replace-regexp-in-string (concat pattern ".*$") "::\n" text))
             (t text)))))
@@ -2860,9 +2865,11 @@ format using the ~org-rst-convert-region-to-rst~ function.
 
 #+NAME: el-tangle-readme
 #+BEGIN_SRC emacs-lisp :var input="doc-intro" :results silent
+(require 'ox-rst)
 (let ((org-export-with-toc nil)
       (org-export-with-todo-keywords nil)
-      (org-export-with-section-numbers nil))
+      (org-export-with-section-numbers nil)
+      (org-export-with-broken-links t))
   (org-export-to-file 'rst "doc/source/org-doc.rst"))
 ;;(save-excursion
 ;;  (org-babel-goto-named-src-block "rst-README")
