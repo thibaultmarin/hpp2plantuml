@@ -2088,7 +2088,7 @@ class TestFullDiagram():
 #+END_SRC
 
 
-* TODO Packaging
+* REVIEW Packaging
 
 In order to publish the hpp2plantuml module to [[https://pypi.python.org/pypi][PyPI]], the =setuptools= package
 was used.
@@ -2357,7 +2357,7 @@ Usage
 #+END_SRC
 
 
-** TODO Documentation
+** REVIEW Documentation
    :PROPERTIES:
    :CUSTOM_ID: sec-package-doc
    :END:
@@ -2374,13 +2374,15 @@ The documentation is composed of two parts:
 - the ~sphinx-api~ program is used to generate the module documentation from
   docstrings in the code.
 
-*** Sphinx configuration
+*** REVIEW Sphinx configuration
 
 Sphinx configuration is performed via the =conf.py= file.  An example
-configuration file can be generated using the =sphinx-quickstart= command.
-
-[[(sphinx-conf-path)]]
-[[(sphinx-conf--numpydoc)]]
+configuration file can be generated using the =sphinx-quickstart= command.  The
+content of the file is mostly following the defaults, with a few exceptions:
+- the system path is modified to include the path to the package source code
+  ([[(sphinx-conf-path)]]),
+- the =numpydoc= package is used to render the docstrings
+  ([[(sphinx-conf--numpydoc)]]).
 
 #+NAME: py-sphinx-conf
 #+BEGIN_SRC python :noweb yes :mkdirp yes :tangle doc/source/conf.py
@@ -2836,6 +2838,25 @@ format using the ~org-rst-convert-region-to-rst~ function.
 
 
 ** TODO Tangling
+
+#+NAME: derived-backend
+#+BEGIN_SRC emacs-lisp
+(defun custom-rst-filter-org-block (text backend info)
+  (when (org-export-derived-backend-p backend 'rst)
+    (let* ((pattern ".*\.\. code-block:: \\([[:alnum:]]+\\)")
+           (lang (progn
+                   (string-match pattern text)
+                   (match-string 1 text))))
+      (cond ((string= lang "org")
+             (replace-regexp-in-string (concat pattern ".*$") "" text))
+            ((member lang '("conf" "plantuml"))
+             (replace-regexp-in-string (concat pattern ".*$") "::\n" text))
+            (t text)))))
+
+(add-to-list 'org-export-filter-src-block-functions
+             'custom-rst-filter-org-block)
+#+END_SRC
+
 
 #+NAME: el-tangle-readme
 #+BEGIN_SRC emacs-lisp :var input="doc-intro" :results silent
