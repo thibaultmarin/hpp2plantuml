@@ -77,5 +77,5 @@ produce a string output instead of writing to a text file.
 
 The full documentation is located at:
 
-- `Read the docs <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
-- `Org-mode post <http://hpp2plantuml.readthedocs.io/en/latest/>`_
+- `Org-mode post <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
+- `Read the docs <http://hpp2plantuml.readthedocs.io/en/latest/>`_
