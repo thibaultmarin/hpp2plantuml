@@ -2210,7 +2210,7 @@ PACKAGES = find_packages(where="src")
 META_PATH = os.path.join("src", NAME, "__init__.py")
 KEYWORDS = ["class", "attribute", "boilerplate"]
 CLASSIFIERS = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Natural Language :: English",
     "License :: OSI Approved :: MIT License",
@@ -2306,7 +2306,7 @@ This final block passes all the relevant package information to =setuptools=:
 - console script: the package installs the =hpp2plantuml= [[#sec-module-cmd][command]].
 
 #+NAME: py-setup-main
-#+BEGIN_SRC python
+#+BEGIN_SRC python -r
 
 if __name__ == "__main__":
     setup(
@@ -2338,6 +2338,20 @@ if __name__ == "__main__":
 #+END_SRC
 
 
+** REVIEW Manifest
+
+The manifest file is used to include extra files to the package.
+
+#+NAME: setup-manifest
+#+BEGIN_SRC conf :tangle MANIFEST.in
+include *.rst *.txt LICENSE
+recursive-include tests *.py
+recursive-include doc *.rst
+recursive-include doc *.py
+prune doc/build
+#+END_SRC
+
+
 ** REVIEW README
 
 The README file is automatically generated from blocks defined in this
@@ -2354,7 +2368,7 @@ hpp2plantuml - Convert C++ header files to PlantUML
 Usage
 -----
 
-<<el-org-exp("sec-usage", "rst")>>
+<<el-org-exp("sec-module-usage", "rst", "keep")>>
 
 #+END_SRC
 
@@ -2387,7 +2401,7 @@ content of the file is mostly following the defaults, with a few exceptions:
   ([[(sphinx-conf-numpydoc)]]).
 
 #+NAME: py-sphinx-conf
-#+BEGIN_SRC python :noweb yes :mkdirp yes :tangle doc/source/conf.py
+#+BEGIN_SRC python -r :noweb yes :mkdirp yes :tangle doc/source/conf.py
 
 # -*- coding: utf-8 -*-
 #
@@ -2779,7 +2793,7 @@ hpp2plantuml documentation
 Usage
 -----
 
-<<el-org-exp("sec-usage", "rst")>>
+<<el-org-exp("sec-module-usage", "rst", "keep")>>
 
 Module documentation generated from docstrings
 ----------------------------------------------
@@ -2833,7 +2847,7 @@ the target section are removed (~children = "remove"~) of kept (any other
 string, e.g. "keep").
 
 #+NAME: el-org-exp
-#+BEGIN_SRC emacs-lisp -r :var input="sec-usage" :var lang="rst" :var children="remove" :results silent
+#+BEGIN_SRC emacs-lisp -r :var input="sec-module-usage" :var lang="rst" :var children="remove" :results silent
 (save-excursion
   (let ((org-tree (org-element-parse-buffer)))
     (org-element-map
