@@ -24,9 +24,6 @@ hierarchies.  It aims at supporting:
 - aggregation relationships (very basic support).
 
 
-Usage
------
-
 .. _sec-module-usage:
 
 Usage
@@ -76,3 +73,9 @@ then be used to create a PlantUML file from a set of input files.
 Alternatively, the ``Diagram`` object can be used directly to build internal
 objects (from files or strings).  The ``Diagram.render()`` method can be used to
 produce a string output instead of writing to a text file.
+
+
+The full documentation is located at:
+
+- `Read the docs <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
+- `Org-mode post <http://hpp2plantuml.readthedocs.io/en/latest/>`_

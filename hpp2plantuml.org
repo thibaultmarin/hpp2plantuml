@@ -78,7 +78,7 @@ The full list of non-standard dependencies is produced by the following source
 block (returning either imports or a dependency list used in [[#sec-package-setup-py][=setup.py=]]):
 
 #+NAME: py-dependencies
-#+BEGIN_SRC emacs-lisp :var output="import" :var dep-list=py-dependency-list :results value
+#+BEGIN_SRC emacs-lisp :var output="import" :var dep-list=py-dependency-list :results value :eval no-export
 (cond
  ((string= output "import")
   (mapconcat
@@ -2372,10 +2372,12 @@ hpp2plantuml - Convert C++ header files to PlantUML
 
 <<el-org-exp("sec-intro", "rst")>>
 
-Usage
------
-
 <<el-org-exp("sec-module-usage", "rst", "keep")>>
+
+The full documentation is located at:
+
+- `Read the docs <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
+- `Org-mode post <http://hpp2plantuml.readthedocs.io/en/latest/>`_
 
 #+END_SRC
 
