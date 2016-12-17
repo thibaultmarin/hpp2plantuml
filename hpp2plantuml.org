@@ -2125,7 +2125,7 @@ Usage:
 __title__ = "hpp2plantuml"
 __description__ = "Convert C++ header files to PlantUML"
 __version__ = <<get-version()>>
-__uri__ = "https://hpp2plantuml.readthedocs.io/"
+__uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
 __doc__ = __description__ + " <" + __uri__ + ">"
 __author__ = "Thibault Marin"
 __email__ = "thibault.marin@gmx.com"
@@ -2224,6 +2224,7 @@ CLASSIFIERS = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 INSTALL_REQUIRES = <<py-dependencies("requirements")>>
+INSTALL_REQUIRES += ['sphinx', ]
 SETUP_REQUIRES = ['sphinx', 'numpydoc']
 ###################################################################
 #+END_SRC
