@@ -1,6 +1,6 @@
 #+TITLE: hpp2plantuml - Convert C++ header files to PlantUML
 #+DATE: <2016-11-30 Wed>
-#+OPTIONS: todo:nil
+#+OPTIONS: todo:nil ^:nil
 #+TODO: TODO REVIEW | DONE DEFERRED ABANDONED
 #+MACRO: tt \nbsp{}
 #+PROPERTY: header-args+ :exports code :results silent
@@ -1574,7 +1574,7 @@ objects (from files or strings).  The ~Diagram.render()~ method can be used to
 produce a string output instead of writing to a text file.
 
 
-* REVIEW Tests
+* DONE Tests
  :PROPERTIES:
  :header-args:python+: :tangle tests/test_hpp2plantuml.py
  :END:
@@ -1670,7 +1670,7 @@ class TestContainer:
 #+END_SRC
 
 
-*** REVIEW Class
+*** DONE Class
 
 Testing for classes is performed by parsing minimal C++ code segments and
 comparing the rendered text to a reference.  The input/output pairs are stored
@@ -1964,7 +1964,7 @@ Class03 o-- Class02
 #+END_SRC
 
 
-*** REVIEW Test diagram generation
+*** DONE Test diagram generation
 
 The system test validates the following:
 - input from multiple files, with and without wildcards,
@@ -2092,7 +2092,7 @@ class TestFullDiagram():
 #+END_SRC
 
 
-* REVIEW Packaging
+* DONE Packaging
 
 In order to distribute and publish the hpp2plantuml module to [[https://pypi.python.org/pypi][PyPI]], the
 =setuptools= package was used.

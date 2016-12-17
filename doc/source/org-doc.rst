@@ -983,25 +983,25 @@ Table `tbl-diagram-interface`_.
 .. table:: Public interface for populating a ``Diagram`` object.
     :name: tbl-diagram-interface
 
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
-    | Method name                                          | input type | input list? | reset? | sort? | build lists? |
-    +======================================================+============+=============+========+=======+==============+
-    | create\ :sub:`from`\ \ :sub:`file`\                  | file       | no          | yes    | yes   | yes          |
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
-    | create\ :sub:`from`\ \ :sub:`file`\ \ :sub:`list`\   | file       | yes         | yes    | yes   | yes          |
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
-    | add\ :sub:`from`\ \ :sub:`file`\                     | file       | no          | no     | no    | no           |
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
-    | add\ :sub:`from`\ \ :sub:`file`\ \ :sub:`list`\      | file       | yes         | no     | no    | no           |
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
-    | create\ :sub:`from`\ \ :sub:`string`\                | string     | no          | yes    | yes   | yes          |
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
-    | create\ :sub:`from`\ \ :sub:`string`\ \ :sub:`list`\ | string     | yes         | yes    | yes   | yes          |
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
-    | add\ :sub:`from`\ \ :sub:`string`\                   | string     | no          | no     | no    | no           |
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
-    | add\ :sub:`from`\ \ :sub:`string`\ \ :sub:`list`\    | string     | yes         | no     | no    | no           |
-    +------------------------------------------------------+------------+-------------+--------+-------+--------------+
+    +----------------------------+------------+-------------+--------+-------+--------------+
+    | Method name                | input type | input list? | reset? | sort? | build lists? |
+    +============================+============+=============+========+=======+==============+
+    | create\_from\_file         | file       | no          | yes    | yes   | yes          |
+    +----------------------------+------------+-------------+--------+-------+--------------+
+    | create\_from\_file\_list   | file       | yes         | yes    | yes   | yes          |
+    +----------------------------+------------+-------------+--------+-------+--------------+
+    | add\_from\_file            | file       | no          | no     | no    | no           |
+    +----------------------------+------------+-------------+--------+-------+--------------+
+    | add\_from\_file\_list      | file       | yes         | no     | no    | no           |
+    +----------------------------+------------+-------------+--------+-------+--------------+
+    | create\_from\_string       | string     | no          | yes    | yes   | yes          |
+    +----------------------------+------------+-------------+--------+-------+--------------+
+    | create\_from\_string\_list | string     | yes         | yes    | yes   | yes          |
+    +----------------------------+------------+-------------+--------+-------+--------------+
+    | add\_from\_string          | string     | no          | no     | no    | no           |
+    +----------------------------+------------+-------------+--------+-------+--------------+
+    | add\_from\_string\_list    | string     | yes         | no     | no    | no           |
+    +----------------------------+------------+-------------+--------+-------+--------------+
 
 Functionally, parsing of the C++ headers is left to the ``CppHeaderParser``
 module, the output of which is parsed into internal objects using ``Container``
@@ -3112,7 +3112,7 @@ org-to-rst
 
 The following source block converts the content of an org heading to rst format
 using the ``org-rst-convert-region-to-rst`` function.  The heading to process is
-passed by its CUSTOM\ :sub:`ID`\ property (as a string).  In addition, the output
+passed by its CUSTOM\_ID property (as a string).  In addition, the output
 language can set (although rst is the only instance used in this document) and
 an additional flag ``children`` can be used to control whether the subsections of
 the target section are removed (``children = "remove"``) of kept (any other
