@@ -2822,6 +2822,17 @@ Indices and tables
 #+END_SRC
 
 
+*** DONE Read The Docs
+
+In order to build the documentation on the [[http://read-the-docs.readthedocs.io/en/latest/][Read The Docs]] website, a requirement
+file is added for the =numpydoc= package.
+
+#+NAME: req-readthedocs
+#+BEGIN_SRC conf :mkdirp yes :tangle doc/source/readthedocs-requirements.txt
+numpydoc
+#+END_SRC
+
+
 * DONE Org-mode setup
 
 The generation of the package code depends on org-mode, mostly to expand blocks

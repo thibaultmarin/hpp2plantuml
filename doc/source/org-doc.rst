@@ -3086,6 +3086,18 @@ to the automatically generated and the org-file documents.
     * :ref:`modindex`
     * :ref:`search`
 
+Read The Docs
+^^^^^^^^^^^^^
+
+In order to build the documentation on the `Read The Docs <http://read-the-docs.readthedocs.io/en/latest/>`_ website, a requirement
+file is added for the ``numpydoc`` package.
+
+::
+
+    :name: req-readthedocs
+
+    numpydoc
+
 Org-mode setup
 --------------
 
