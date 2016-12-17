@@ -29,9 +29,6 @@ hierarchies.  It aims at supporting:
 - aggregation relationships (very basic support).
 
 
-Usage
------
-
 .. _sec-module-usage:
 
 Usage

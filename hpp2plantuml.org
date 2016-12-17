@@ -2797,9 +2797,6 @@ hpp2plantuml documentation
 
 <<el-org-exp("sec-intro", "rst")>>
 
-Usage
------
-
 <<el-org-exp("sec-module-usage", "rst", "keep")>>
 
 Module documentation generated from docstrings
