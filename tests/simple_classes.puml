@@ -1,0 +1,40 @@
+@startuml
+abstract class Class01 {
+	+{abstract} AbstractPublicMethod(int param) : bool
+	+PublicMethod(int param) : bool
+	+{static} StaticPublicMethod(bool param) : bool
+	#{abstract} _AbstractMethod(int param) : bool
+	#_ProtectedMethod(int param) : bool
+	#{static} _StaticProtectedMethod(bool param) : bool
+	#_protected_var : int
+	+public_var : int
+}
+
+class Class02 {
+	+AbstractPublicMethod(int param) : bool
+	-_AbstractMethod(int param) : bool
+	-_PrivateMethod(int param) : bool
+	-{static} _StaticPrivateMethod(bool param) : bool
+	-_private_var : int
+}
+
+class Class03 <template<typename T>> {
+	+Class03()
+	+~Class03()
+	-_data : Class01*
+	-_obj : Class01*
+	-_typed_obj : T*
+	-_obj_list : list<Class02>
+}
+
+enum Enum01 {
+	VALUE_0
+	VALUE_1
+	VALUE_2
+}
+
+Class01 <|-- Class02
+Class03 "2" o-- Class01
+Class03 o-- Class02
+
+@enduml

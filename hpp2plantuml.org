@@ -1,5 +1,6 @@
 #+TITLE: hpp2plantuml - Convert C++ header files to PlantUML
 #+DATE: <2016-11-30 Wed>
+#+OPTIONS: todo:nil
 #+TODO: TODO REVIEW | DONE DEFERRED ABANDONED
 #+MACRO: tt \nbsp{}
 #+PROPERTY: header-args+ :exports code :results silent
@@ -12,13 +13,13 @@ The current version of the code is:
 #+NAME: hpp2plantuml-version
 : 0.1
 
-* REVIEW Motivation
+* DONE Motivation
   :PROPERTIES:
   :CUSTOM_ID: sec-intro
   :END:
 
 The purpose of this tool is to convert C++ header files to a UML representation
-in [[https://plantuml.com][PlantUML]] syntax that can be used to generate with PlantUML.
+in [[https://plantuml.com][PlantUML]] syntax that can be used to generate diagrams with PlantUML.
 
 [[https://plantuml.com][PlantUML]] is a program rendering UML diagrams from plain text inputs using an
 expressive language.
@@ -32,7 +33,7 @@ hierarchies.  It aims at supporting:
 - aggregation relationships (very basic support).
 
 
-* REVIEW License
+* DONE License
 
 The license adopted for this project is the MIT license.
 
@@ -64,7 +65,7 @@ THE SOFTWARE.
 #+END_SRC
 
 
-* REVIEW Requirements
+* DONE Requirements
 
 This module has mostly standard dependencies; the only exception is the
 [[http://senexcanis.com/open-source/cppheaderparser/][CppHeaderParser]] module used to parse header files.
@@ -73,8 +74,8 @@ This module has mostly standard dependencies; the only exception is the
 | argparse        |
 | CppHeaderParser |
 
-The full list non-standard of dependencies is produced by the following source
-block (adding either imports or dependency list used in [[#sec-package-setup-py][=setup.py=]]):
+The full list of non-standard dependencies is produced by the following source
+block (returning either imports or a dependency list used in [[#sec-package-setup-py][=setup.py=]]):
 
 #+NAME: py-dependencies
 #+BEGIN_SRC emacs-lisp :var output="import" :var dep-list=py-dependency-list :results value
@@ -102,7 +103,7 @@ The tests rely on the [[http://nose.readthedocs.io/en/latest/][nosetest]] framew
 with [[http://sphinx-doc.org][Sphinx]].
 
 
-* REVIEW Module source code
+* DONE Module source code
   :PROPERTIES:
   :CUSTOM_ID: sec-module
   :END:
@@ -120,11 +121,10 @@ instantiation time from the parsed header via the ~parse_members~ method.
 Conversion to text input in PlantUML syntax is performed by the ~render~ method.
 
 Relationships between objects are extracted from a ~Diagram~ object by listing
-inheritance properties and parsing member types into
-[[#sec-module-relationship][relationship objects]].
+inheritance properties and parsing member types into [[#sec-module-relationship][relationship objects]].
 
 
-** REVIEW String representation constants
+** DONE String representation constants
    :PROPERTIES:
    :CUSTOM_ID: sec-module-constants
    :END:
@@ -169,19 +169,19 @@ CONTAINER_TYPE_MAP = [
 #+END_SRC
 
 
-** REVIEW Objects
+** DONE Objects
 
 C++ objects parsed by the =CppHeaderParser= module are converted to internal
 objects which perform two tasks:
 1. extract properties supported by PlantUML,
-2. generate text following the PlantUML syntax representing the object
+2. generate text following the PlantUML syntax representing the object.
 
 The module currently supports ~class~ and ~enum~ objects.  They are implemented
 via the internal ~Class~ and ~Enum~ objects, which inherits from a common base
 class.
 
 
-*** REVIEW Base class
+*** DONE Base class
     :PROPERTIES:
     :CUSTOM_ID: sec-module-container
     :END:
@@ -349,7 +349,7 @@ class ContainerMember(object):
 #+END_SRC
 
 
-*** REVIEW Classes
+*** DONE Classes
 
 C++ class objects are represented using the ~Class~ class.  It extends the
 [[#sec-module-container][~Container~]] class adding class properties (template, abstract) and a list of
@@ -464,7 +464,7 @@ class Class(Container):
 #+END_SRC
 
 
-*** REVIEW Class members
+*** DONE Class members
     :PROPERTIES:
     :CUSTOM_ID: sec-module-class-member
     :END:
@@ -538,7 +538,7 @@ class ClassMember(ContainerMember):
 #+END_SRC
 
 
-**** REVIEW Properties
+**** DONE Properties
     :PROPERTIES:
     :CUSTOM_ID: sec_class_properties
     :END:
@@ -588,17 +588,18 @@ class ClassVariable(ClassMember):
 #+END_SRC
 
 
-**** REVIEW Methods
+**** DONE Methods
     :PROPERTIES:
     :CUSTOM_ID: sec_class_methods
     :END:
 
 Member methods store additional information on the class members: an abstract
-flag is used to purely virtual methods, the method name is modified to prefix a
-tilde sign (=~=) for destructor methods and a list of parameters is stored.
+flag is used for purely virtual methods, the method name is modified to add a
+tilde sign (=~=) prefix for destructor methods and a list of parameters is
+stored.
 
 The name rendering includes the method signature.  An option to shorten the list
-of parameters by keeping only types or names or using ellipsis may be
+of parameters by keeping only types or variable names or using ellipsis may be
 implemented in the future.
 
 #+NAME: py-obj-class_method
@@ -668,7 +669,7 @@ class ClassMethod(ClassMember):
 #+END_SRC
 
 
-*** REVIEW Structures
+*** DONE Structures
 
 While ~struct~ objects are currently not supported, their addition should be
 relatively straightforward and the ~Struct~ class may simply inherit from the
@@ -700,7 +701,7 @@ class Struct(Class):
 #+END_SRC
 
 
-*** REVIEW Enumeration lists
+*** DONE Enumeration lists
 
 The ~Enum~ class representing enumeration object is a trivial extension of the
 base [[#sec-module-container][~Container~]] class.  Note that the enumeration elements are rendered without
@@ -770,15 +771,16 @@ class EnumValue(ContainerMember):
 #+END_SRC
 
 
-*** REVIEW Class relationships
+*** DONE Class relationships
     :PROPERTIES:
     :CUSTOM_ID: sec-module-relationship
     :END:
 
 The current version only supports inheritance and aggregation relationships.  No
 attempt is made to differentiate between composition and aggregation
-relationships from the code; instead, an object have as a member of a type
-defined by another class is assumed to be a aggregation relationship.
+relationships from the code; instead, an object having a member of a type
+defined by another class is assumed to correspond to an aggregation
+relationship.
 
 The base ~ClassRelationship~ class defines the common properties of class
 relationships: a parent, a child and a connection type.  All are saved as
@@ -857,10 +859,11 @@ class ClassRelationship(object):
 #+END_SRC
 
 
-**** REVIEW Inheritance
+**** DONE Inheritance
 
 The inheritance relationship is a straightforward specialization of the base
-~ClassRelationship~ class: it simply forces the link type to be "inherit".
+~ClassRelationship~ class: it simply forces the link type to be the string
+"inherit".
 
 #+NAME: py-class_inheritance
 #+BEGIN_SRC python
@@ -887,7 +890,7 @@ class ClassInheritanceRelationship(ClassRelationship):
 #+END_SRC
 
 
-**** REVIEW Aggregation
+**** DONE Aggregation
 
 The aggregation relationship specializes the base ~ClassRelationship~ class by
 using the "aggregation" link type and adding a ~count~ field used to add a label
@@ -939,7 +942,7 @@ class ClassAggregationRelationship(ClassRelationship):
 #+END_SRC
 
 
-*** REVIEW Diagram object
+*** DONE Diagram object
     :PROPERTIES:
     :CUSTOM_ID: sec-module-diagram
     :END:
@@ -976,12 +979,12 @@ Table{{{tt}}}[[tbl-diagram-interface]].
 | add_from_string         | string     | no          | no     | no    | no           |
 | add_from_string_list    | string     | yes         | no     | no    | no           |
 
-Functionally, the parsing is left to the =CppHeaderParser= module, the output of
-which is parsed into internal objects using ~Container~ parsers.  The main
-functionality of the ~Diagram~ class consists in building the relationship lists
-between classes.  The assumption is that for a link to be stored, it must be
-between two objects present in the ~Diagram~ object (no external
-relationships).
+Functionally, parsing of the C++ headers is left to the =CppHeaderParser=
+module, the output of which is parsed into internal objects using ~Container~
+parsers.  The main functionality of the ~Diagram~ class consists in building the
+relationship lists between classes.  The assumption is that for a link to be
+stored, it must be between two objects present in the ~Diagram~ object (no
+relationships with external classes).
 
 To build the inheritance list, the objects are browsed and
 ~ClassInheritanceRelationship~ instances are added to the list whenever the
@@ -993,15 +996,15 @@ a list of (type, count) pairs is constructed for members of types defined within
 the ~Diagram~ object.  Finally, the list is used to instantiate
 ~ClassAggregationRelationship~ objects stored in a list.
 
-The rendering function builds a string containing the PlantUML preamble
+The rendering function builds a string containing the PlantUML preamble and
 postamble text for diagrams (~@startuml~, ~@enduml~), the rendered text for each
 object and the rendered relationship links.
 
-In order to ensure that the rendering is reproducible, a sorted mechanism has
+In order to ensure that the rendering is reproducible, a sorting mechanism has
 been implemented for objects, members and relationships.  Objects and object
 members are sorted by type and name and relationships are sorted by parent name,
 child name and link type if necessary.  The ~add_from_*~ interface methods can
-be used to avoid this feature.
+be used to avoid this sorting step.
 
 #+NAME: py-obj-diagram
 #+BEGIN_SRC python
@@ -1358,14 +1361,14 @@ class Diagram(object):
 #+END_SRC
 
 
-** REVIEW Helper functions
+** DONE Helper functions
 
 This section briefly describes the helper functions defined in the module.
 
-*** REVIEW Sanitize type string
+*** DONE Sanitize type string
 
-The ~_cleanup_type~ function tries to unify the string representation of types
-by eliminating spaces around =*= characters.
+The ~_cleanup_type~ function tries to unify the string representation of
+variable types by eliminating spaces around =*= characters.
 
 #+NAME: py-helper-cleanup-str
 #+BEGIN_SRC python
@@ -1393,7 +1396,7 @@ def _cleanup_type(type_str):
 #+END_SRC
 
 
-*** REVIEW Expand file list
+*** DONE Expand file list
 
 The [[#sec-module-create-uml][main interface function]] accepts wildcards in filenames; they are resolved
 using the =glob= package.  The ~expand_file_list~ function takes as input a list
@@ -1430,7 +1433,7 @@ def expand_file_list(input_files):
 #+END_SRC
 
 
-** REVIEW Main function: create PlantUML from C++
+** DONE Main function: create PlantUML from C++
   :PROPERTIES:
   :CUSTOM_ID: sec-module-create-uml
   :END:
@@ -1479,21 +1482,21 @@ def CreatePlantUMLFile(file_list, output_file=None):
 #+END_SRC
 
 
-** REVIEW Command line interface
+** DONE Command line interface
    :PROPERTIES:
    :CUSTOM_ID: sec-module-cmd
    :END:
 
-The ~main~ function provides a minimal command line interface using =argparse=
+The [[(module-main)][~main~]] function provides a minimal command line interface using =argparse=
 to parse input arguments.  The function passes the command line arguments to the
 [[#sec-module-create-uml][~CreatePlantUMLFile~]] function.
 
 #+NAME: py-cmd-main
-#+BEGIN_SRC python
+#+BEGIN_SRC python -r
 # %% Command line interface
 
 
-def main():
+def main():(ref:module-main)
     """Command line interface
 
     This function is a command-line interface to the
@@ -1521,7 +1524,7 @@ if __name__ == '__main__':
 #+END_SRC
 
 
-* REVIEW Usage
+* DONE Usage
   :PROPERTIES:
   :CUSTOM_ID: sec-module-usage
   :END:
@@ -1549,8 +1552,9 @@ optional arguments:
 
 
 Input files are added using the ~-i~ option.  Inputs can be file paths or
-include wildcards.  The output file is selected with the ~-o~ option.  The
-output is a text file following the PlantUML syntax.
+include wildcards.  Note that the double quotes are required when using
+wildcards.  The output file is selected with the ~-o~ option.  The output is a
+text file following the PlantUML syntax.
 
 For instance, the following command will generate the input file for PlantUML
 from several header files and store the output to the =output.puml= file.
@@ -1559,8 +1563,6 @@ from several header files and store the output to the =output.puml= file.
 #+BEGIN_SRC sh
 hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 #+END_SRC
-
-Note that the double quotes are required when using wildcards.
 
 
 ** Module
@@ -1625,13 +1627,13 @@ def fix_test_list_def(test_list):
     return test_list_out
 #+END_SRC
 
-** REVIEW Module tests
+** DONE Module tests
 
 The module tests are not strictly speaking unit tests, as they rely on parsing
 of a header file, but they aim at evaluating simple functionality of the
 different modules implemented.
 
-*** REVIEW Container
+*** DONE Container
 
 The test for the ~Container~ class tests elementary functionality: members and
 sorting keys.
@@ -1668,7 +1670,7 @@ class TestContainer:
 #+END_SRC
 
 
-*** TODO Class
+*** REVIEW Class
 
 Testing for classes is performed by parsing minimal C++ code segments and
 comparing the rendered text to a reference.  The input/output pairs are stored
@@ -1677,7 +1679,7 @@ adding rows to the table, with the constraint that each test should be contained
 in a single row of the table.
 
 
-**** REVIEW Class variable
+**** DONE Class variable
 
 Class variables have simple functionality (name, type and scope).  The following
 table (Table{{{tt}}}[[tbl-unittest-class_var]]) defines tests that validate
@@ -1685,9 +1687,9 @@ the representation of variables.
 
 #+NAME: tbl-unittest-class_var
 #+CAPTION: List of test segments and corresponding PlantUML strings.
-| "class Test {\npublic:\nint p_member; };"     | "+p_member : int"  |
-| "class Test {\nprivate:\nint * p_member; };"  | "-p_member : int*" |
-| "class Test {\nprotected:\nint &p_member; };" | "#p_member : int&" |
+| "class Test {\npublic:\nint member; };"     | "+member : int"  |
+| "class Test {\nprivate:\nint * member; };"  | "-member : int*" |
+| "class Test {\nprotected:\nint &member; };" | "#member : int&" |
 
 
 #+NAME: test-unit-class_var
@@ -1711,7 +1713,7 @@ class TestClassVariable:
 #+END_SRC
 
 
-**** REVIEW Class method
+**** DONE Class method
 
 The tests for class methods are listed in
 Table{{{tt}}}[[tbl-unittest-class_method]].  Note that template methods are not
@@ -1747,14 +1749,14 @@ class TestClassMethod:
 #+END_SRC
 
 
-**** REVIEW Class
+**** DONE Class
 
 The unit test for classes includes rendering tests for the code segments in
 Table{{{tt}}}[[tbl-unittest-class]].  It includes templates and abstract classes.
 
 #+NAME: tbl-unittest-class
 #+CAPTION: List of test segments and corresponding PlantUML strings.
-| "class Test {\nprotected:\nint & p_member; };"                     | "class Test {\n\t#p_member : int&\n}\n"                                               |
+| "class Test {\nprotected:\nint & member; };"                       | "class Test {\n\t#member : int&\n}\n"                                                 |
 | "class Test\n{\npublic:\nvirtual int func() = 0; };"               | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                              |
 | "template <typename T> class Test{\nT* func(T& arg); };"           | "class Test <template <typename T>> {\n\t-func(T& arg) : T*\n}\n"                     |
 | "template <typename T> class Test{\nvirtual T* func(T& arg)=0; };" | "abstract class Test <template <typename T>> {\n\t-{abstract} func(T& arg) : T*\n}\n" |
@@ -1780,7 +1782,7 @@ class TestClass:
 #+END_SRC
 
 
-*** REVIEW Enum
+*** DONE Enum
 
 The unit test for enum objects includes rendering tests for the code segments in
 Table{{{tt}}}[[tbl-unittest-enum]].
@@ -1811,7 +1813,7 @@ class TestEnum:
 #+END_SRC
 
 
-*** REVIEW Links
+*** DONE Links
 
 The unit test for link objects includes rendering tests for the code segments in
 Table{{{tt}}}[[tbl-unittest-link]].  It tests inheritance and aggregation
@@ -1845,12 +1847,12 @@ class TestLink:
 #+END_SRC
 
 
-** REVIEW Full system test
+** DONE Full system test
 
 The system test uses example header files and validates the PlantUML string
 rendering compared to a saved reference.
 
-*** REVIEW Input files
+*** DONE Input files
     :PROPERTIES:
     :CUSTOM_ID: sec-test-system-hpp
     :END:
@@ -1908,7 +1910,7 @@ private:
 
 
 
-*** REVIEW Reference output
+*** DONE Reference output
     :PROPERTIES:
     :CUSTOM_ID: sec-test-system-ref
     :END:
@@ -2092,8 +2094,8 @@ class TestFullDiagram():
 
 * REVIEW Packaging
 
-In order to publish the hpp2plantuml module to [[https://pypi.python.org/pypi][PyPI]], the =setuptools= package
-was used.
+In order to distribute and publish the hpp2plantuml module to [[https://pypi.python.org/pypi][PyPI]], the
+=setuptools= package was used.
 
 The following guides summarize the packaging process and provide useful
 examples:
@@ -2102,7 +2104,7 @@ examples:
 - https://packaging.python.org/distributing/
 
 
-** REVIEW __init__.py
+** DONE =__init__.py=
 
 The module's init file simply defines meta variables required by =setuptools=.
 It also imports the main interface: the ~CreatePlantUMLFile~ function and the
@@ -2139,7 +2141,7 @@ __all__ = ['CreatePlantUMLFile', 'Diagram']
 #+END_SRC
 
 
-** REVIEW setup.cfg
+** DONE =setup.cfg=
 
 The =setup.cfg= file defines some basic properties of the package.  It forces
 "universal" wheel builds, sets the license file and defines documentation
@@ -2147,7 +2149,8 @@ commands.
 
 The [[#sec-package-doc][documentation]] uses [[http://sphinx-doc.org][Sphinx]] to generate the HTML documentation.  The
 ~build_sphinx~ configuration defines the location for the input and output
-documentation files.
+documentation files.  In practice, the documentation is built using a [[#sec-package-doc][custom
+command]] for =setup.py= run using ~python setup.py sphinx~.
 
 #+NAME: cfg-setup
 #+BEGIN_SRC conf :tangle setup.cfg
@@ -2169,7 +2172,7 @@ upload-dir = doc/build/html
 #+END_SRC
 
 
-** REVIEW setup.py
+** DONE =setup.py=
    :PROPERTIES:
    :CUSTOM_ID: sec-package-setup-py
    :header-args:python+: :tangle setup.py :noweb yes
@@ -2195,7 +2198,7 @@ except ImportError:
     pass
 #+END_SRC
 
-*** REVIEW Custom content
+*** DONE Custom content
 
 The non-boiler part of the =setup.py= file defines the package information.
 
@@ -2230,9 +2233,10 @@ SETUP_REQUIRES = ['sphinx', 'numpydoc']
 #+END_SRC
 
 
-*** REVIEW Helper functions
+*** DONE Helper functions
 
-The helper functions provide functions to extra metadata from the init file.
+The following helper functions provide tools to extract metadata from the
+=__init__= file and pass it to the ~setup~ command.
 
 #+NAME: py-setup-helper
 #+BEGIN_SRC python
@@ -2298,7 +2302,7 @@ class Sphinx(Command):
 #+END_SRC
 
 
-*** REVIEW Setup
+*** DONE Setup
 
 This final block passes all the relevant package information to =setuptools=:
 - package information: name, author, license, requirements,
@@ -2339,7 +2343,7 @@ if __name__ == "__main__":
 #+END_SRC
 
 
-** REVIEW Manifest
+** DONE Manifest
 
 The manifest file is used to include extra files to the package.
 
@@ -2347,13 +2351,15 @@ The manifest file is used to include extra files to the package.
 #+BEGIN_SRC conf :tangle MANIFEST.in
 include *.rst *.txt LICENSE
 recursive-include tests *.py
+recursive-include tests *.hpp
+recursive-include tests *.puml
 recursive-include doc *.rst
 recursive-include doc *.py
 prune doc/build
 #+END_SRC
 
 
-** REVIEW README
+** DONE README
 
 The README file is automatically generated from blocks defined in this
 org-file (converted to RST format).
@@ -2374,13 +2380,13 @@ Usage
 #+END_SRC
 
 
-** REVIEW Documentation
+** DONE Documentation
    :PROPERTIES:
    :CUSTOM_ID: sec-package-doc
    :END:
 
 The module documentation is this org-file, which contains everything from the
-module code to tests packaging and documentation.
+module code to tests, packaging and documentation.
 
 In order to distribute the package on standard platforms, a RST documentation is
 also generated using [[http://sphinx-doc.org][Sphinx]].  The =setup.py= file contains a [[(setup-sphinx)][custom command]]
@@ -2391,7 +2397,7 @@ The documentation is composed of two parts:
 - the ~sphinx-api~ program is used to generate the module documentation from
   docstrings in the code.
 
-*** REVIEW Sphinx configuration
+*** DONE Sphinx configuration
 
 Sphinx configuration is performed via the =conf.py= file.  An example
 configuration file can be generated using the =sphinx-quickstart= command.  The
@@ -2772,7 +2778,7 @@ intersphinx_mapping = {'https://docs.python.org/': None}
 #+END_SRC
 
 
-*** REVIEW Index page
+*** DONE Index page
 
 The index page is the entry point of the documentation.  It is formed by other
 parts of the org document including a brief description of the usage and links
@@ -2816,19 +2822,19 @@ Indices and tables
 #+END_SRC
 
 
-* REVIEW Org-mode setup
+* DONE Org-mode setup
 
 The generation of the package code depends on org-mode, mostly to expand blocks
 with the [[http://orgmode.org/manual/Noweb-reference-syntax.html][=noweb=]] interface.  The following defines helper functions to simplify
 this process.
 
-** REVIEW Version string
+** DONE Version string
    :PROPERTIES:
    :CUSTOM_ID: sec-org-el-version
    :END:
 
 The following source block is used to get the module's version number defined in
-[[hpp2plantuml-version][a single location]] and included at multiple locations.
+[[hpp2plantuml-version][a single location]] and include it at multiple locations.
 
 #+NAME: get-version
 #+BEGIN_SRC emacs-lisp :var ver=hpp2plantuml-version :var lang="python"
@@ -2837,7 +2843,7 @@ The following source block is used to get the module's version number defined in
 #+END_SRC
 
 
-** REVIEW org-to-rst
+** DONE org-to-rst
 
 The following source block converts the content of an org heading to rst format
 using the [[(rst-convert-region)][~org-rst-convert-region-to-rst~]] function.  The heading to process is
@@ -2880,15 +2886,15 @@ string, e.g. "keep").
 #+END_SRC
 
 
-** REVIEW Generate documentation
+** DONE Generate documentation
 
-This org-file can be exported to rst and added to the package documentation
-generated by sphinx.  This is performed using org's [[http://orgmode.org/manual/Advanced-configuration.html][filtering functionality]].
-The [[(el-rst-filter)][~custom-rst-filter-org-block~]] function defines the filter responsible for
-post-processing source blocks when exporting to rst.  Its goal is to fix
-languages unknown to sphinx (which relies on [[http://pygments.org/][the pygmentize program]] for syntax
-highlighting) such as =plantuml= and org's =conf= blocks, replacing them by a
-simple example block.
+When generating the rst documentation from this org-file, special handling is
+required for source languages known to org but not to rst..  This is performed
+using org's [[http://orgmode.org/manual/Advanced-configuration.html][filtering functionality]].  The [[(el-rst-filter)][~custom-rst-filter-org-block~]] function
+defines the filter responsible for post-processing source blocks when exporting
+to rst.  Its goal is to fix languages unknown to sphinx (which relies on [[http://pygments.org/][the
+pygmentize program]] for syntax highlighting) such as =plantuml= and org's =conf=
+blocks, replacing them by a simple example block.
 
 #+NAME: ox-rst-filter-src
 #+BEGIN_SRC emacs-lisp -r
@@ -2907,7 +2913,7 @@ simple example block.
 The command and options to generate the org-file documentation in rst format are
 encapsulated in the following source block.
 
-#+NAME: el-tangle-readme
+#+NAME: el-export-rst-org-doc
 #+BEGIN_SRC emacs-lisp :results silent
 (require 'ox-rst)
 (let ((org-export-with-toc nil)

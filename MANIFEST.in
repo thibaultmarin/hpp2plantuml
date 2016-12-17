@@ -1,0 +1,7 @@
+include *.rst *.txt LICENSE
+recursive-include tests *.py
+recursive-include tests *.hpp
+recursive-include tests *.puml
+recursive-include doc *.rst
+recursive-include doc *.py
+prune doc/build
