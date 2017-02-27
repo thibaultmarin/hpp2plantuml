@@ -88,11 +88,11 @@ int & func(int * a); };""", "+func(int* a) : int&"], ["""class Test {
 public:
 static int func(int & a); };""", "+{static} func(int& a) : int"], ["""class Test {
 private:
-virtual int * func() = 0; };""", "-{abstract} func() : int*"], ["""class Test {
+virtual int * func() const = 0; };""", "-{abstract} func() : int* {query}"], ["""class Test {
 public:
 ~Test(); };""", "+~Test()"], ["""class Test {
 protected:
-template <typename T>int &func(string &); };""", "#func(string &) : int&"]]
+template <typename T>int &func(string &) const; };""", "#func(string &) : int& {query}"]]
 # %% Test class methods
 
 

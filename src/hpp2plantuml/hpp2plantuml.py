@@ -301,9 +301,6 @@ class ClassMember(ContainerMember):
         self._type = None
         self._static = class_member['static']
         self._scope = member_scope
-        print(class_member)
-        self._const = False
-        # self._const = True if 'constant' in class_member and class_member['constant'] else ''
 
     def render(self):
         """Get string representation of member
@@ -322,8 +319,7 @@ class ClassMember(ContainerMember):
         member_str = MEMBER_PROP_MAP[self._scope] + \
                       ('{static} ' if self._static else '') + \
                       self._render_name() + \
-                      (' : ' + self._type if self._type else '') + \
-                      (' {query}' if self._const else '')
+                      (' : ' + self._type if self._type else '')
         return member_str
 
     def _render_name(self):
@@ -409,6 +405,11 @@ class ClassMethod(ClassMember):
         self._abstract = class_method['pure_virtual']
         if class_method['destructor']:
             self._name = '~' + self._name
+
+        # the smallest possible change to add constant modifier
+        if class_method['const']:
+            self._type += ' {query}'
+
         self._param_list = []
         for param in class_method['parameters']:
             self._param_list.append([_cleanup_type(param['type']),
