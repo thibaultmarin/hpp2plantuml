@@ -405,6 +405,11 @@ class ClassMethod(ClassMember):
         self._abstract = class_method['pure_virtual']
         if class_method['destructor']:
             self._name = '~' + self._name
+
+        # the smallest possible change to add constant modifier
+        if class_method['const']:
+            self._type += ' {query}'
+
         self._param_list = []
         for param in class_method['parameters']:
             self._param_list.append([_cleanup_type(param['type']),
