@@ -301,25 +301,33 @@ class ClassMember(ContainerMember):
         self._type = None
         self._static = class_member['static']
         self._scope = member_scope
+        self._properties = []
 
     def render(self):
         """Get string representation of member
 
         The string representation is with the scope indicator and a static
         keyword when the member is static.  It is postfixed by the type (return
-        type for class methods).  The inner part of the returned string
-        contains the variable name and signature for methods.  This is obtained
-        using the :func:`_render_name` method.
+        type for class methods) and additional properties (e.g. ``const``
+        methods are flagged with the ``query`` property).  The inner part of
+        the returned string contains the variable name and signature for
+        methods.  This is obtained using the :func:`_render_name` method.
 
         Returns
         -------
         str
             String representation of member
+
         """
-        member_str = MEMBER_PROP_MAP[self._scope] + \
-                      ('{static} ' if self._static else '') + \
-                      self._render_name() + \
-                      (' : ' + self._type if self._type else '')
+        if len(self._properties) > 0:
+            props = ' {' + ', '.join(self._properties) + '}'
+        else:
+            props = ''
+        vis = MEMBER_PROP_MAP[self._scope] + \
+              ('{static} ' if self._static else '')
+        member_str = vis + self._render_name() + \
+                     (' : ' + self._type if self._type else '') + \
+                     props
         return member_str
 
     def _render_name(self):
@@ -381,9 +389,11 @@ class ClassMethod(ClassMember):
         """Constructor
 
         The method name and additional properties are extracted from the parsed
-        header.  A list of parameter types is also stored to retain the
-        function signature.  The ``~`` character is also appended to destructor
-        methods.
+        header.
+
+        * A list of parameter types is stored to retain the function signature.
+        * The ``~`` character is appended to destructor methods.
+        * ``const`` methods are flagged with the ``query`` property.
 
         Parameters
         ----------
@@ -391,6 +401,7 @@ class ClassMethod(ClassMember):
             Parsed class member method
         member_scope : str
             Scope of the member method
+
         """
         assert(isinstance(class_method,
                           CppHeaderParser.CppHeaderParser.CppMethod))
@@ -405,11 +416,8 @@ class ClassMethod(ClassMember):
         self._abstract = class_method['pure_virtual']
         if class_method['destructor']:
             self._name = '~' + self._name
-
-        # the smallest possible change to add constant modifier
         if class_method['const']:
-            self._type += ' {query}'
-
+            self._properties.append('query')
         self._param_list = []
         for param in class_method['parameters']:
             self._param_list.append([_cleanup_type(param['type']),

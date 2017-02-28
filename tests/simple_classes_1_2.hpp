@@ -8,7 +8,7 @@ protected:
 	virtual bool _AbstractMethod(int param) = 0;
 public:
 	int public_var;
-	bool PublicMethod(int param);
+	bool PublicMethod(int param) const;
 	static bool StaticPublicMethod(bool param);
 	virtual bool AbstractPublicMethod(int param) = 0;
 };

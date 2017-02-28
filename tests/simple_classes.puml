@@ -1,7 +1,7 @@
 @startuml
 abstract class Class01 {
 	+{abstract} AbstractPublicMethod(int param) : bool
-	+PublicMethod(int param) : bool
+	+PublicMethod(int param) : bool {query}
 	+{static} StaticPublicMethod(bool param) : bool
 	#{abstract} _AbstractMethod(int param) : bool
 	#_ProtectedMethod(int param) : bool

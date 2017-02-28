@@ -87,7 +87,7 @@ This module has mostly standard dependencies; the only exception is the
 The full list of non-standard dependencies is produced by the following source
 block (returning either imports or a dependency list used in `sec-package-setup-py`_):
 
-.. code-block:: scheme
+.. code:: common-lisp
     :name: py-dependencies
 
     (cond
@@ -100,7 +100,7 @@ block (returning either imports or a dependency list used in `sec-package-setup-
                (lambda (el) (concat "'" (car el) "'")) dep-list ", ")
               "]")))
 
-.. code-block:: python
+.. code:: python
     :name: py-imports
 
     # %% Imports
@@ -150,7 +150,7 @@ of elementary properties and links.
 - ``CONTAINER_TYPE_MAP`` associates object types with internal classes used for
   their representation.
 
-.. code-block:: python
+.. code:: python
     :name: py-constants
 
     # %% Constants
@@ -215,7 +215,7 @@ The ``Container`` class is abstract and contains:
   definition (e.g. "class TestClass") and its members (e.g. member variables and
   methods).
 
-.. code-block:: python
+.. code:: python
     :name: py-obj-container
 
     # %% Base classes
@@ -316,7 +316,7 @@ the ``ContainerMember`` class.  The interface only includes a ``render`` method
 returning a string representation of the member.  The base class
 ``ContainerMember`` defines this method abstract.
 
-.. code-block:: python
+.. code:: python
     :name: py-obj-container-member
 
     # %% Object member
@@ -374,7 +374,7 @@ C++ class objects are represented using the ``Class`` class.  It extends the
 parent classes.  It also offers a method to extract the types of its members,
 which is used to determine aggregation relationships between classes.
 
-.. code-block:: python
+.. code:: python
     :name: py-render-classes
 
     # %% Class object
@@ -496,7 +496,7 @@ of the member is mostly common between variables and methods.  The ``ClassMember
 class provides the common rendering and relies on child classes implementing the
 ``_render_name`` method for specialization.
 
-.. code-block:: python
+.. code:: python
     :name: py-obj-class_member
 
     # %% Class member
@@ -524,25 +524,33 @@ class provides the common rendering and relies on child classes implementing the
             self._type = None
             self._static = class_member['static']
             self._scope = member_scope
+            self._properties = []
 
         def render(self):
             """Get string representation of member
 
             The string representation is with the scope indicator and a static
             keyword when the member is static.  It is postfixed by the type (return
-            type for class methods).  The inner part of the returned string
-            contains the variable name and signature for methods.  This is obtained
-            using the :func:`_render_name` method.
+            type for class methods) and additional properties (e.g. ``const``
+            methods are flagged with the ``query`` property).  The inner part of
+            the returned string contains the variable name and signature for
+            methods.  This is obtained using the :func:`_render_name` method.
 
             Returns
             -------
             str
                 String representation of member
+
             """
-            member_str = MEMBER_PROP_MAP[self._scope] + \
-                          ('{static} ' if self._static else '') + \
-                          self._render_name() + \
-                          (' : ' + self._type if self._type else '')
+            if len(self._properties) > 0:
+                props = ' {' + ', '.join(self._properties) + '}'
+            else:
+                props = ''
+            vis = MEMBER_PROP_MAP[self._scope] + \
+                  ('{static} ' if self._static else '')
+            member_str = vis + self._render_name() + \
+                         (' : ' + self._type if self._type else '') + \
+                         props
             return member_str
 
         def _render_name(self):
@@ -563,7 +571,7 @@ The specialization required for class member variables is minimal: the member
 type is extracted from the parsed dictionary, and the rest of the setup is left
 to the `sec-module-class-member`_.
 
-.. code-block:: python
+.. code:: python
     :name: py-obj-class_variable
 
     # %% Class variable
@@ -617,7 +625,7 @@ The name rendering includes the method signature.  An option to shorten the list
 of parameters by keeping only types or variable names or using ellipsis may be
 implemented in the future.
 
-.. code-block:: python
+.. code:: python
     :name: py-obj-class_method
 
     # %% Class method
@@ -633,9 +641,11 @@ implemented in the future.
             """Constructor
 
             The method name and additional properties are extracted from the parsed
-            header.  A list of parameter types is also stored to retain the
-            function signature.  The ``~`` character is also appended to destructor
-            methods.
+            header.
+
+            * A list of parameter types is stored to retain the function signature.
+            * The ``~`` character is appended to destructor methods.
+            * ``const`` methods are flagged with the ``query`` property.
 
             Parameters
             ----------
@@ -643,6 +653,7 @@ implemented in the future.
                 Parsed class member method
             member_scope : str
                 Scope of the member method
+
             """
             assert(isinstance(class_method,
                               CppHeaderParser.CppHeaderParser.CppMethod))
@@ -657,6 +668,8 @@ implemented in the future.
             self._abstract = class_method['pure_virtual']
             if class_method['destructor']:
                 self._name = '~' + self._name
+            if class_method['const']:
+                self._properties.append('query')
             self._param_list = []
             for param in class_method['parameters']:
                 self._param_list.append([_cleanup_type(param['type']),
@@ -690,7 +703,7 @@ While ``struct`` objects are currently not supported, their addition should be
 relatively straightforward and the ``Struct`` class may simply inherit from the
 ``Class`` class.  The following should give a starting point.
 
-.. code-block:: python
+.. code:: python
     :name: py-render-structs
 
     # %% Struct object
@@ -722,7 +735,7 @@ The ``Enum`` class representing enumeration object is a trivial extension of the
 base `sec-module-container`_ class.  Note that the enumeration elements are rendered without
 the actual values.
 
-.. code-block:: python
+.. code:: python
     :name: py-render-enums
 
     # %% Enum object
@@ -801,7 +814,7 @@ relationships: a parent, a child and a connection type.  All are saved as
 strings and the text representation of a connection link is obtained from the
 `sec-module-constants`_.
 
-.. code-block:: python
+.. code:: python
     :name: py-class_relationship
 
     # %% Class connections
@@ -879,7 +892,7 @@ The inheritance relationship is a straightforward specialization of the base
 ``ClassRelationship`` class: it simply forces the link type to be the string
 "inherit".
 
-.. code-block:: python
+.. code:: python
     :name: py-class_inheritance
 
     # %% Class inheritance
@@ -911,7 +924,7 @@ using the "aggregation" link type and adding a ``count`` field used to add a lab
 with the number of instances of the parent class in the PlantUML diagram (the
 count is omitted when equal to one).
 
-.. code-block:: python
+.. code:: python
     :name: py-class_aggregation
 
     # %% Class aggregation
@@ -967,7 +980,7 @@ ready to process by PlantUML.
 
 An example use case for the ``Diagram`` class could be:
 
-.. code-block:: python
+.. code:: python
     :name: py-diag-example
 
     # Create object
@@ -1030,7 +1043,7 @@ members are sorted by type and name and relationships are sorted by parent name,
 child name and link type if necessary.  The ``add_from_*`` interface methods can
 be used to avoid this sorting step.
 
-.. code-block:: python
+.. code:: python
     :name: py-obj-diagram
 
     # %% Diagram class
@@ -1395,7 +1408,7 @@ Sanitize type string
 The ``_cleanup_type`` function tries to unify the string representation of
 variable types by eliminating spaces around ``\*`` characters.
 
-.. code-block:: python
+.. code:: python
     :name: py-helper-cleanup-str
 
     # %% Cleanup object type string
@@ -1428,7 +1441,7 @@ using the ``glob`` package.  The ``expand_file_list`` function takes as input a 
 of filenames and expands wildcards using the ``glob`` command returning a list of
 existing filenames without wildcards.
 
-.. code-block:: python
+.. code:: python
     :name: py-build-file-list
 
     # %% Expand wildcards in file list
@@ -1471,7 +1484,7 @@ The function creates a ``Diagram`` object, initializes it with the expanded list
 of input files and writes the content of the ``Diagram.render()`` method to the
 output file.
 
-.. code-block:: python
+.. code:: python
     :name: py-create-plantuml
 
     # %% Main function
@@ -1514,7 +1527,7 @@ The ``main`` function provides a minimal command line interface using ``argparse
 to parse input arguments.  The function passes the command line arguments to the
 `sec-module-create-uml`_ function.
 
-.. code-block:: python
+.. code:: python
     :name: py-cmd-main
 
     # %% Command line interface
@@ -1582,7 +1595,7 @@ text file following the PlantUML syntax.
 For instance, the following command will generate the input file for PlantUML
 from several header files and store the output to the ``output.puml`` file.
 
-.. code-block:: sh
+.. code:: sh
     :name: usage-sh
 
     hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
@@ -1612,7 +1625,7 @@ character in org-mode, it is replaced by "@" in the tables and fixed in python.
 
 Following is the test setup code.
 
-.. code-block:: python
+.. code:: python
     :name: test-setup
 
     """Test module for hpp2plantuml"""
@@ -1660,7 +1673,7 @@ Container
 The test for the ``Container`` class tests elementary functionality: members and
 sorting keys.
 
-.. code-block:: python
+.. code:: python
     :name: test-unit-container
 
     # %% Test containers
@@ -1719,7 +1732,7 @@ the representation of variables.
     +---------------------------------------------+-------------------+
 
 
-.. code-block:: python
+.. code:: python
     :name: test-unit-class_var
 
     # %% Test class variables
@@ -1749,20 +1762,20 @@ supported by PlantUML.
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-class_method
 
-    +--------------------------------------------------------------------------+--------------------------------+
-    | "class Test {\npublic:\nint & func(int \* a); };"                        | "+func(int\* a) : int&"        |
-    +--------------------------------------------------------------------------+--------------------------------+
-    | "class Test {\npublic:\nstatic int func(int & a); };"                    | "+{static} func(int& a) : int" |
-    +--------------------------------------------------------------------------+--------------------------------+
-    | "class Test {\nprivate:\nvirtual int \* func() = 0; };"                  | "-{abstract} func() : int\*"   |
-    +--------------------------------------------------------------------------+--------------------------------+
-    | "class Test {\npublic:\n~Test(); };"                                     | "+~Test()"                     |
-    +--------------------------------------------------------------------------+--------------------------------+
-    | "class Test {\nprotected:\ntemplate <typename T>int &func(string &); };" | "#func(string &) : int&"       |
-    +--------------------------------------------------------------------------+--------------------------------+
+    +--------------------------------------------------------------------------------+--------------------------------------+
+    | "class Test {\npublic:\nint & func(int \* a); };"                              | "+func(int\* a) : int&"              |
+    +--------------------------------------------------------------------------------+--------------------------------------+
+    | "class Test {\npublic:\nstatic int func(int & a); };"                          | "+{static} func(int& a) : int"       |
+    +--------------------------------------------------------------------------------+--------------------------------------+
+    | "class Test {\nprivate:\nvirtual int \* func() const = 0; };"                  | "-{abstract} func() : int\* {query}" |
+    +--------------------------------------------------------------------------------+--------------------------------------+
+    | "class Test {\npublic:\n~Test(); };"                                           | "+~Test()"                           |
+    +--------------------------------------------------------------------------------+--------------------------------------+
+    | "class Test {\nprotected:\ntemplate <typename T>int &func(string &) const; };" | "#func(string &) : int& {query}"     |
+    +--------------------------------------------------------------------------------+--------------------------------------+
 
 
-.. code-block:: python
+.. code:: python
     :name: test-unit-class_method
 
     # %% Test class methods
@@ -1802,7 +1815,7 @@ Table `tbl-unittest-class`_.  It includes templates and abstract classes.
     +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
 
 
-.. code-block:: python
+.. code:: python
     :name: test-unit-class
 
     # %% Test classes
@@ -1837,7 +1850,7 @@ Table `tbl-unittest-enum`_.
     +-------------------------------------+-----------------------------------------+
 
 
-.. code-block:: python
+.. code:: python
     :name: test-unit-enum
 
     # %% Test enum objects
@@ -1878,7 +1891,7 @@ relationships (with and without count).
     +-----------------------------------------+-------------------+
 
 
-.. code-block:: python
+.. code:: python
     :name: test-unit-link
 
     class TestLink:
@@ -1915,7 +1928,7 @@ etc.).
 The following can be extended to improve testing, as long as the corresponding
 `sec-test-system-ref`_ is kept up-to-date.
 
-.. code-block:: c++
+.. code:: c++
     :name: hpp-simple-classes-1-2
 
     enum Enum01 { VALUE_0, VALUE_1, VALUE_2 };
@@ -1928,7 +1941,7 @@ The following can be extended to improve testing, as long as the corresponding
     	virtual bool _AbstractMethod(int param) = 0;
     public:
     	int public_var;
-    	bool PublicMethod(int param);
+    	bool PublicMethod(int param) const;
     	static bool StaticPublicMethod(bool param);
     	virtual bool AbstractPublicMethod(int param) = 0;
     };
@@ -1943,7 +1956,7 @@ The following can be extended to improve testing, as long as the corresponding
     	bool _AbstractMethod(int param) override;
     };
 
-.. code-block:: c++
+.. code:: c++
     :name: hpp-simple-classes-3
 
     template<typename T>
@@ -1974,7 +1987,7 @@ The comparison takes into account the white space, indentation, etc.
     @startuml
     abstract class Class01 {
     	+{abstract} AbstractPublicMethod(int param) : bool
-    	+PublicMethod(int param) : bool
+    	+PublicMethod(int param) : bool {query}
     	+{static} StaticPublicMethod(bool param) : bool
     	#{abstract} _AbstractMethod(int param) : bool
     	#_ProtectedMethod(int param) : bool
@@ -2027,7 +2040,7 @@ The system test validates the following:
 - the ``CreatePlantUMLFile`` interface, including stdout and file output.
 
 
-.. code-block:: python
+.. code:: python
     :name: test-full-diagram
 
     # %% Test overall system
@@ -2169,7 +2182,7 @@ It also imports the main interface: the ``CreatePlantUMLFile`` function and the
 The header is filled with the content of org-mode blocks.  The version number is
 obtained using the source block described `sec-org-el-version`_.
 
-.. code-block:: python
+.. code:: python
     :name: py-init
 
     """ hpp2plantuml module
@@ -2233,7 +2246,7 @@ obtained using the source block described `sec-org-el-version`_.
     For instance, the following command will generate the input file for PlantUML
     from several header files and store the output to the ``output.puml`` file.
 
-    .. code-block:: sh
+    .. code:: sh
         :name: usage-sh
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
@@ -2301,7 +2314,7 @@ documentation files.  In practice, the documentation is built using a `sec-packa
 The ``setup.py`` file is the interface to ``setuptools``.  It defines the packaging
 options.  Most of it is taken from `this post <https://hynek.me/articles/sharing-your-labor-of-love-pypi-quick-and-dirty/>`_.
 
-.. code-block:: python
+.. code:: python
     :name: py-setup-import
 
 
@@ -2323,7 +2336,7 @@ Custom content
 
 The non-boiler part of the ``setup.py`` file defines the package information.
 
-.. code-block:: python
+.. code:: python
     :name: py-setup-custom
 
     # %% Custom fields
@@ -2359,7 +2372,7 @@ Helper functions
 The following helper functions provide tools to extract metadata from the
 ``__init__`` file and pass it to the ``setup`` command.
 
-.. code-block:: python
+.. code:: python
     :name: py-setup-helper
 
 
@@ -2435,7 +2448,7 @@ This final block passes all the relevant package information to ``setuptools``:
 
 - console script: the package installs the ``hpp2plantuml`` `sec-module-cmd`_.
 
-.. code-block:: python
+.. code:: python
     :name: py-setup-main
 
 
@@ -2489,7 +2502,7 @@ README
 The README file is automatically generated from blocks defined in this
 org-file (converted to RST format).
 
-.. code-block:: rst
+.. code:: rst
     :name: rst-README
 
 
@@ -2518,9 +2531,6 @@ org-file (converted to RST format).
 
     - aggregation relationships (very basic support).
 
-
-    Usage
-    -----
 
     .. _sec-module-usage:
 
@@ -2558,7 +2568,7 @@ org-file (converted to RST format).
     For instance, the following command will generate the input file for PlantUML
     from several header files and store the output to the ``output.puml`` file.
 
-    .. code-block:: sh
+    .. code:: sh
         :name: usage-sh
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
@@ -2571,6 +2581,12 @@ org-file (converted to RST format).
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
     produce a string output instead of writing to a text file.
+
+
+    The full documentation is located at:
+
+    - `Org-mode post <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
+    - `Read the docs <http://hpp2plantuml.readthedocs.io/en/latest/>`_
 
 .. _sec-package-doc:
 
@@ -2604,7 +2620,7 @@ content of the file is mostly following the defaults, with a few exceptions:
 - the ``numpydoc`` package is used to render the docstrings
   (53).
 
-.. code-block:: python
+.. code:: python
     :name: py-sphinx-conf
 
 
@@ -2980,7 +2996,7 @@ The index page is the entry point of the documentation.  It is formed by other
 parts of the org document including a brief description of the usage and links
 to the automatically generated and the org-file documents.
 
-.. code-block:: rst
+.. code:: rst
     :name: doc-rst-index
 
 
@@ -3014,9 +3030,6 @@ to the automatically generated and the org-file documents.
 
     - aggregation relationships (very basic support).
 
-
-    Usage
-    -----
 
     .. _sec-module-usage:
 
@@ -3054,7 +3067,7 @@ to the automatically generated and the org-file documents.
     For instance, the following command will generate the input file for PlantUML
     from several header files and store the output to the ``output.puml`` file.
 
-    .. code-block:: sh
+    .. code:: sh
         :name: usage-sh
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
@@ -3113,7 +3126,7 @@ Version string
 The following source block is used to get the module's version number defined in
 `a single location <hpp2plantuml-version>`_ and include it at multiple locations.
 
-.. code-block:: scheme
+.. code:: common-lisp
     :name: get-version
 
     (cond ((string= lang "python")
@@ -3130,7 +3143,7 @@ an additional flag ``children`` can be used to control whether the subsections o
 the target section are removed (``children = "remove"``) of kept (any other
 string, e.g. "keep").
 
-.. code-block:: scheme
+.. code:: common-lisp
     :name: el-org-exp
 
     (save-excursion
@@ -3173,12 +3186,12 @@ to rst.  Its goal is to fix languages unknown to sphinx (which relies on `the
 pygmentize program <http://pygments.org/>`_ for syntax highlighting) such as ``plantuml`` and org's ``conf``
 blocks, replacing them by a simple example block.
 
-.. code-block:: scheme
+.. code:: common-lisp
     :name: ox-rst-filter-src
 
     (defun custom-rst-filter-org-block (text backend info)(ref:el-rst-filter)
       (when (org-export-derived-backend-p backend 'rst)
-        (let* ((pattern ".*\.\. code-block:: \\([[:alnum:]]+\\)")
+        (let* ((pattern ".*\.\. code:: \\([[:alnum:]]+\\)")
                (pattern-line (concat pattern ".*$"))
                (lang (progn
                        (string-match pattern text)
@@ -3190,7 +3203,7 @@ blocks, replacing them by a simple example block.
 The command and options to generate the org-file documentation in rst format are
 encapsulated in the following source block.
 
-.. code-block:: scheme
+.. code:: common-lisp
     :name: el-export-rst-org-doc
 
     (require 'ox-rst)

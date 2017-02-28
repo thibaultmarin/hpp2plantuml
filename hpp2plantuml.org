@@ -3,6 +3,10 @@
 #+OPTIONS: todo:nil ^:nil
 #+TODO: TODO REVIEW | DONE DEFERRED ABANDONED
 #+MACRO: tt \nbsp{}
+#+PROPERTY: header-args:conf+ :eval never
+#+PROPERTY: header-args:c+++ :eval never
+#+PROPERTY: header-args:plantuml+ :eval never
+#+PROPERTY: header-args:rst+ :eval never
 #+PROPERTY: header-args+ :exports code :results silent
 #+PROPERTY: header-args:python+ :tangle src/hpp2plantuml/hpp2plantuml.py :mkdirp yes :eval no
 
@@ -506,25 +510,33 @@ class ClassMember(ContainerMember):
         self._type = None
         self._static = class_member['static']
         self._scope = member_scope
+        self._properties = []
 
     def render(self):
         """Get string representation of member
 
         The string representation is with the scope indicator and a static
         keyword when the member is static.  It is postfixed by the type (return
-        type for class methods).  The inner part of the returned string
-        contains the variable name and signature for methods.  This is obtained
-        using the :func:`_render_name` method.
+        type for class methods) and additional properties (e.g. ``const``
+        methods are flagged with the ``query`` property).  The inner part of
+        the returned string contains the variable name and signature for
+        methods.  This is obtained using the :func:`_render_name` method.
 
         Returns
         -------
         str
             String representation of member
+
         """
-        member_str = MEMBER_PROP_MAP[self._scope] + \
-                      ('{static} ' if self._static else '') + \
-                      self._render_name() + \
-                      (' : ' + self._type if self._type else '')
+        if len(self._properties) > 0:
+            props = ' {' + ', '.join(self._properties) + '}'
+        else:
+            props = ''
+        vis = MEMBER_PROP_MAP[self._scope] + \
+              ('{static} ' if self._static else '')
+        member_str = vis + self._render_name() + \
+                     (' : ' + self._type if self._type else '') + \
+                     props
         return member_str
 
     def _render_name(self):
@@ -617,9 +629,11 @@ class ClassMethod(ClassMember):
         """Constructor
 
         The method name and additional properties are extracted from the parsed
-        header.  A list of parameter types is also stored to retain the
-        function signature.  The ``~`` character is also appended to destructor
-        methods.
+        header.
+
+        ,* A list of parameter types is stored to retain the function signature.
+        ,* The ``~`` character is appended to destructor methods.
+        ,* ``const`` methods are flagged with the ``query`` property.
 
         Parameters
         ----------
@@ -627,6 +641,7 @@ class ClassMethod(ClassMember):
             Parsed class member method
         member_scope : str
             Scope of the member method
+
         """
         assert(isinstance(class_method,
                           CppHeaderParser.CppHeaderParser.CppMethod))
@@ -641,6 +656,8 @@ class ClassMethod(ClassMember):
         self._abstract = class_method['pure_virtual']
         if class_method['destructor']:
             self._name = '~' + self._name
+        if class_method['const']:
+            self._properties.append('query')
         self._param_list = []
         for param in class_method['parameters']:
             self._param_list.append([_cleanup_type(param['type']),
@@ -1721,11 +1738,11 @@ supported by PlantUML.
 
 #+NAME: tbl-unittest-class_method
 #+CAPTION: List of test segments and corresponding PlantUML strings.
-| "class Test {\npublic:\nint & func(int * a); };"                         | "+func(int* a) : int&"         |
-| "class Test {\npublic:\nstatic int func(int & a); };"                    | "+{static} func(int& a) : int" |
-| "class Test {\nprivate:\nvirtual int * func() = 0; };"                   | "-{abstract} func() : int*"    |
-| "class Test {\npublic:\n~Test(); };"                                     | "+~Test()"                     |
-| "class Test {\nprotected:\ntemplate <typename T>int &func(string &); };" | "#func(string &) : int&"       |
+| "class Test {\npublic:\nint & func(int * a); };"                               | "+func(int* a) : int&"              |
+| "class Test {\npublic:\nstatic int func(int & a); };"                          | "+{static} func(int& a) : int"      |
+| "class Test {\nprivate:\nvirtual int * func() const = 0; };"                   | "-{abstract} func() : int* {query}" |
+| "class Test {\npublic:\n~Test(); };"                                           | "+~Test()"                          |
+| "class Test {\nprotected:\ntemplate <typename T>int &func(string &) const; };" | "#func(string &) : int& {query}"    |
 
 
 #+NAME: test-unit-class_method
@@ -1877,7 +1894,7 @@ protected:
 	virtual bool _AbstractMethod(int param) = 0;
 public:
 	int public_var;
-	bool PublicMethod(int param);
+	bool PublicMethod(int param) const;
 	static bool StaticPublicMethod(bool param);
 	virtual bool AbstractPublicMethod(int param) = 0;
 };
@@ -1924,7 +1941,7 @@ The comparison takes into account the white space, indentation, etc.
 @startuml
 abstract class Class01 {
 	+{abstract} AbstractPublicMethod(int param) : bool
-	+PublicMethod(int param) : bool
+	+PublicMethod(int param) : bool {query}
 	+{static} StaticPublicMethod(bool param) : bool
 	#{abstract} _AbstractMethod(int param) : bool
 	#_ProtectedMethod(int param) : bool
@@ -2910,7 +2927,7 @@ blocks, replacing them by a simple example block.
 #+BEGIN_SRC emacs-lisp -r
 (defun custom-rst-filter-org-block (text backend info)(ref:el-rst-filter)
   (when (org-export-derived-backend-p backend 'rst)
-    (let* ((pattern ".*\.\. code-block:: \\([[:alnum:]]+\\)")
+    (let* ((pattern ".*\.\. code:: \\([[:alnum:]]+\\)")
            (pattern-line (concat pattern ".*$"))
            (lang (progn
                    (string-match pattern text)

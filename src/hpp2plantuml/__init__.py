@@ -59,7 +59,7 @@ text file following the PlantUML syntax.
 For instance, the following command will generate the input file for PlantUML
 from several header files and store the output to the ``output.puml`` file.
 
-.. code-block:: sh
+.. code:: sh
     :name: usage-sh
 
     hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
