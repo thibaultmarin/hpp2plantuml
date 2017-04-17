@@ -21,8 +21,6 @@ Relationships between objects are extracted from a ``Diagram`` object by listing
 inheritance properties and parsing member types into .
 
 
-Usage:
-
 .. _sec-module-usage:
 
 Usage
@@ -51,13 +49,13 @@ The command line usage is (``hpp2plantuml --help``):
                             Input file (must be quoted when using wildcards)
 
 
-Input files are added using the ``-i`` option.  Inputs can be file paths or
-include wildcards.  Note that the double quotes are required when using
-wildcards.  The output file is selected with the ``-o`` option.  The output is a
-text file following the PlantUML syntax.
+Input files are added using the ``-i`` option.  Inputs can be full file paths or
+include wildcards.  Note that double quotes are required when using wildcards.
+The output file is selected with the ``-o`` option.  The output is a text file
+following the PlantUML syntax.
 
-For instance, the following command will generate the input file for PlantUML
-from several header files and store the output to the ``output.puml`` file.
+For instance, the following command will generate an input file for PlantUML
+(``output.puml``) from several header files.
 
 .. code:: sh
     :name: usage-sh
@@ -67,8 +65,8 @@ from several header files and store the output to the ``output.puml`` file.
 Module
 ~~~~~~
 
-To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile`` can
-then be used to create a PlantUML file from a set of input files.
+To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
+function can then be used to create a PlantUML file from a set of input files.
 Alternatively, the ``Diagram`` object can be used directly to build internal
 objects (from files or strings).  The ``Diagram.render()`` method can be used to
 produce a string output instead of writing to a text file.
@@ -77,7 +75,7 @@ produce a string output instead of writing to a text file.
 
 __title__ = "hpp2plantuml"
 __description__ = "Convert C++ header files to PlantUML"
-__version__ = '0.1'
+__version__ = '0.2'
 __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
 __doc__ = __description__ + " <" + __uri__ + ">"
 __author__ = "Thibault Marin"

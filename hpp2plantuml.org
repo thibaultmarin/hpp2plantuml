@@ -15,7 +15,10 @@ this single org-file.
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
-: 0.1
+: 0.2
+
+The source code can be found on GitHub:
+https://github.com/thibaultmarin/hpp2plantuml.
 
 * DONE Motivation
   :PROPERTIES:
@@ -28,13 +31,16 @@ in [[https://plantuml.com][PlantUML]] syntax that can be used to generate diagra
 [[https://plantuml.com][PlantUML]] is a program rendering UML diagrams from plain text inputs using an
 expressive language.
 
-This module generates the text input to PlantUML from C++ header files.  Its
+This package generates the text input to PlantUML from C++ header files.  Its
 ambition is limited but it should produce reasonable conversion for simple class
 hierarchies.  It aims at supporting:
 - class members with properties (~private~, ~method~, ~protected~), methods with
   basic qualifiers (~static~, abstract),
 - inheritance relationships,
 - aggregation relationships (very basic support).
+
+The package relies on the [[http://senexcanis.com/open-source/cppheaderparser/][CppHeaderParser]] package for parsing of C++ header
+files.
 
 
 * DONE License
@@ -75,6 +81,7 @@ This module has mostly standard dependencies; the only exception is the
 [[http://senexcanis.com/open-source/cppheaderparser/][CppHeaderParser]] module used to parse header files.
 
 #+NAME: py-dependency-list
+#+CAPTION: List of dependencies.
 | argparse        |
 | CppHeaderParser |
 
@@ -82,7 +89,7 @@ The full list of non-standard dependencies is produced by the following source
 block (returning either imports or a dependency list used in [[#sec-package-setup-py][=setup.py=]]):
 
 #+NAME: py-dependencies
-#+BEGIN_SRC emacs-lisp :var output="import" :var dep-list=py-dependency-list :results value :eval no-export
+#+BEGIN_SRC emacs-lisp :var output="import" :var dep-list=py-dependency-list :results value :eval yes
 (cond
  ((string= output "import")
   (mapconcat
@@ -1541,6 +1548,40 @@ if __name__ == '__main__':
 #+END_SRC
 
 
+* DONE Installation
+  :PROPERTIES:
+  :CUSTOM_ID: sec-module-install
+  :END:
+
+** DONE Using =pip=
+
+The package is available on [[https://pypi.python.org/][PyPi]] and can be installed using pip:
+
+#+BEGIN_EXAMPLE
+pip install hpp2plantuml
+#+END_EXAMPLE
+
+** DONE From source
+
+The code uses =setuptools=, so it can built using:
+
+#+BEGIN_EXAMPLE
+python setup.py install
+#+END_EXAMPLE
+
+To build the documentation, run:
+
+#+BEGIN_EXAMPLE
+python setup.py sphinx
+#+END_EXAMPLE
+
+To run the tests, run:
+
+#+BEGIN_EXAMPLE
+python setup.py test
+#+END_EXAMPLE
+
+
 * DONE Usage
   :PROPERTIES:
   :CUSTOM_ID: sec-module-usage
@@ -1568,13 +1609,13 @@ optional arguments:
 #+END_EXAMPLE
 
 
-Input files are added using the ~-i~ option.  Inputs can be file paths or
-include wildcards.  Note that the double quotes are required when using
-wildcards.  The output file is selected with the ~-o~ option.  The output is a
-text file following the PlantUML syntax.
+Input files are added using the ~-i~ option.  Inputs can be full file paths or
+include wildcards.  Note that double quotes are required when using wildcards.
+The output file is selected with the ~-o~ option.  The output is a text file
+following the PlantUML syntax.
 
-For instance, the following command will generate the input file for PlantUML
-from several header files and store the output to the =output.puml= file.
+For instance, the following command will generate an input file for PlantUML
+(=output.puml=) from several header files.
 
 #+NAME: usage-sh
 #+BEGIN_SRC sh
@@ -1584,8 +1625,8 @@ hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 
 ** Module
 
-To use as a module, simply ~import hpp2plantuml~.  The ~CreatePlantUMLFile~ can
-then be used to create a PlantUML file from a set of input files.
+To use as a module, simply ~import hpp2plantuml~.  The ~CreatePlantUMLFile~
+function can then be used to create a PlantUML file from a set of input files.
 Alternatively, the ~Diagram~ object can be used directly to build internal
 objects (from files or strings).  The ~Diagram.render()~ method can be used to
 produce a string output instead of writing to a text file.
@@ -2136,8 +2177,6 @@ obtained using the source block described [[#sec-org-el-version][here]].
 
 <<el-org-exp("sec-module", "rst")>>
 
-Usage:
-
 <<el-org-exp("sec-module-usage", "rst", "keep")>>
 """
 
@@ -2217,7 +2256,7 @@ except ImportError:
 
 *** DONE Custom content
 
-The non-boiler part of the =setup.py= file defines the package information.
+The non-boilerplate part of the =setup.py= file defines the package information.
 
 #+NAME: py-setup-custom
 #+BEGIN_SRC python
@@ -2391,9 +2430,11 @@ hpp2plantuml - Convert C++ header files to PlantUML
 
 <<el-org-exp("sec-module-usage", "rst", "keep")>>
 
-The full documentation is located at:
+<<el-org-exp("sec-module-install", "rst", "keep")>>
 
-- `Org-mode post <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
+The full documentation is available via:
+
+- `This org-mode post <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
 - `Read the docs <http://hpp2plantuml.readthedocs.io/en/latest/>`_
 
 #+END_SRC
@@ -2878,10 +2919,10 @@ passed by its CUSTOM_ID property (as a string).  In addition, the output
 language can set (although rst is the only instance used in this document) and
 an additional flag ~children~ can be used to control whether the subsections of
 the target section are removed (~children = "remove"~) of kept (any other
-string, e.g. "keep").
+string, e.g. ~"keep"~).
 
 #+NAME: el-org-exp
-#+BEGIN_SRC emacs-lisp -r :var input="sec-module-usage" :var lang="rst" :var children="remove" :results silent
+#+BEGIN_SRC emacs-lisp -r :var input="sec-module-usage" :var lang="rst" :var children="remove" :results silent :eval yes
 (save-excursion
   (let ((org-tree (org-element-parse-buffer)))
     (org-element-map

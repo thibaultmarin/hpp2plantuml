@@ -17,7 +17,7 @@ in `PlantUML <https://plantuml.com>`_ syntax that can be used to generate diagra
 `PlantUML <https://plantuml.com>`_ is a program rendering UML diagrams from plain text inputs using an
 expressive language.
 
-This module generates the text input to PlantUML from C++ header files.  Its
+This package generates the text input to PlantUML from C++ header files.  Its
 ambition is limited but it should produce reasonable conversion for simple class
 hierarchies.  It aims at supporting:
 
@@ -27,6 +27,9 @@ hierarchies.  It aims at supporting:
 - inheritance relationships,
 
 - aggregation relationships (very basic support).
+
+The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+files.
 
 
 .. _sec-module-usage:
@@ -57,13 +60,13 @@ The command line usage is (``hpp2plantuml --help``):
                             Input file (must be quoted when using wildcards)
 
 
-Input files are added using the ``-i`` option.  Inputs can be file paths or
-include wildcards.  Note that the double quotes are required when using
-wildcards.  The output file is selected with the ``-o`` option.  The output is a
-text file following the PlantUML syntax.
+Input files are added using the ``-i`` option.  Inputs can be full file paths or
+include wildcards.  Note that double quotes are required when using wildcards.
+The output file is selected with the ``-o`` option.  The output is a text file
+following the PlantUML syntax.
 
-For instance, the following command will generate the input file for PlantUML
-from several header files and store the output to the ``output.puml`` file.
+For instance, the following command will generate an input file for PlantUML
+(``output.puml``) from several header files.
 
 .. code:: sh
     :name: usage-sh
@@ -73,8 +76,8 @@ from several header files and store the output to the ``output.puml`` file.
 Module
 ~~~~~~
 
-To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile`` can
-then be used to create a PlantUML file from a set of input files.
+To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
+function can then be used to create a PlantUML file from a set of input files.
 Alternatively, the ``Diagram`` object can be used directly to build internal
 objects (from files or strings).  The ``Diagram.render()`` method can be used to
 produce a string output instead of writing to a text file.

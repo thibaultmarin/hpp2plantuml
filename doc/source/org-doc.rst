@@ -13,7 +13,10 @@ The current version of the code is:
 ::
     :name: hpp2plantuml-version
 
-    0.1
+    0.2
+
+The source code can be found on GitHub:
+`https://github.com/thibaultmarin/hpp2plantuml <https://github.com/thibaultmarin/hpp2plantuml>`_.
 
 .. _sec-intro:
 
@@ -26,7 +29,7 @@ in `PlantUML <https://plantuml.com>`_ syntax that can be used to generate diagra
 `PlantUML <https://plantuml.com>`_ is a program rendering UML diagrams from plain text inputs using an
 expressive language.
 
-This module generates the text input to PlantUML from C++ header files.  Its
+This package generates the text input to PlantUML from C++ header files.  Its
 ambition is limited but it should produce reasonable conversion for simple class
 hierarchies.  It aims at supporting:
 
@@ -36,6 +39,9 @@ hierarchies.  It aims at supporting:
 - inheritance relationships,
 
 - aggregation relationships (very basic support).
+
+The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+files.
 
 License
 -------
@@ -75,7 +81,7 @@ Requirements
 This module has mostly standard dependencies; the only exception is the
 `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ module used to parse header files.
 
-.. table::
+.. table:: List of dependencies.
     :name: py-dependency-list
 
     +-----------------+
@@ -1559,6 +1565,41 @@ to parse input arguments.  The function passes the command line arguments to the
     if __name__ == '__main__':
         main()
 
+.. _sec-module-install:
+
+Installation
+------------
+
+Using ``pip``
+~~~~~~~~~~~~~
+
+The package is available on `PyPi <https://pypi.python.org/>`_ and can be installed using pip:
+
+::
+
+    pip install hpp2plantuml
+
+From source
+~~~~~~~~~~~
+
+The code uses ``setuptools``, so it can built using:
+
+::
+
+    python setup.py install
+
+To build the documentation, run:
+
+::
+
+    python setup.py sphinx
+
+To run the tests, run:
+
+::
+
+    python setup.py test
+
 .. _sec-module-usage:
 
 Usage
@@ -1587,13 +1628,13 @@ The command line usage is (``hpp2plantuml --help``):
                             Input file (must be quoted when using wildcards)
 
 
-Input files are added using the ``-i`` option.  Inputs can be file paths or
-include wildcards.  Note that the double quotes are required when using
-wildcards.  The output file is selected with the ``-o`` option.  The output is a
-text file following the PlantUML syntax.
+Input files are added using the ``-i`` option.  Inputs can be full file paths or
+include wildcards.  Note that double quotes are required when using wildcards.
+The output file is selected with the ``-o`` option.  The output is a text file
+following the PlantUML syntax.
 
-For instance, the following command will generate the input file for PlantUML
-from several header files and store the output to the ``output.puml`` file.
+For instance, the following command will generate an input file for PlantUML
+(``output.puml``) from several header files.
 
 .. code:: sh
     :name: usage-sh
@@ -1603,8 +1644,8 @@ from several header files and store the output to the ``output.puml`` file.
 Module
 ~~~~~~
 
-To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile`` can
-then be used to create a PlantUML file from a set of input files.
+To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
+function can then be used to create a PlantUML file from a set of input files.
 Alternatively, the ``Diagram`` object can be used directly to build internal
 objects (from files or strings).  The ``Diagram.render()`` method can be used to
 produce a string output instead of writing to a text file.
@@ -2208,8 +2249,6 @@ obtained using the source block described `sec-org-el-version`_.
     inheritance properties and parsing member types into .
 
 
-    Usage:
-
     .. _sec-module-usage:
 
     Usage
@@ -2238,13 +2277,13 @@ obtained using the source block described `sec-org-el-version`_.
                                 Input file (must be quoted when using wildcards)
 
 
-    Input files are added using the ``-i`` option.  Inputs can be file paths or
-    include wildcards.  Note that the double quotes are required when using
-    wildcards.  The output file is selected with the ``-o`` option.  The output is a
-    text file following the PlantUML syntax.
+    Input files are added using the ``-i`` option.  Inputs can be full file paths or
+    include wildcards.  Note that double quotes are required when using wildcards.
+    The output file is selected with the ``-o`` option.  The output is a text file
+    following the PlantUML syntax.
 
-    For instance, the following command will generate the input file for PlantUML
-    from several header files and store the output to the ``output.puml`` file.
+    For instance, the following command will generate an input file for PlantUML
+    (``output.puml``) from several header files.
 
     .. code:: sh
         :name: usage-sh
@@ -2254,8 +2293,8 @@ obtained using the source block described `sec-org-el-version`_.
     Module
     ~~~~~~
 
-    To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile`` can
-    then be used to create a PlantUML file from a set of input files.
+    To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
+    function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
     produce a string output instead of writing to a text file.
@@ -2264,7 +2303,7 @@ obtained using the source block described `sec-org-el-version`_.
 
     __title__ = "hpp2plantuml"
     __description__ = "Convert C++ header files to PlantUML"
-    __version__ = '0.1'
+    __version__ = '0.2'
     __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
     __doc__ = __description__ + " <" + __uri__ + ">"
     __author__ = "Thibault Marin"
@@ -2334,7 +2373,7 @@ options.  Most of it is taken from `this post <https://hynek.me/articles/sharing
 Custom content
 ^^^^^^^^^^^^^^
 
-The non-boiler part of the ``setup.py`` file defines the package information.
+The non-boilerplate part of the ``setup.py`` file defines the package information.
 
 .. code:: python
     :name: py-setup-custom
@@ -2520,7 +2559,7 @@ org-file (converted to RST format).
     `PlantUML <https://plantuml.com>`_ is a program rendering UML diagrams from plain text inputs using an
     expressive language.
 
-    This module generates the text input to PlantUML from C++ header files.  Its
+    This package generates the text input to PlantUML from C++ header files.  Its
     ambition is limited but it should produce reasonable conversion for simple class
     hierarchies.  It aims at supporting:
 
@@ -2530,6 +2569,9 @@ org-file (converted to RST format).
     - inheritance relationships,
 
     - aggregation relationships (very basic support).
+
+    The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+    files.
 
 
     .. _sec-module-usage:
@@ -2560,13 +2602,13 @@ org-file (converted to RST format).
                                 Input file (must be quoted when using wildcards)
 
 
-    Input files are added using the ``-i`` option.  Inputs can be file paths or
-    include wildcards.  Note that the double quotes are required when using
-    wildcards.  The output file is selected with the ``-o`` option.  The output is a
-    text file following the PlantUML syntax.
+    Input files are added using the ``-i`` option.  Inputs can be full file paths or
+    include wildcards.  Note that double quotes are required when using wildcards.
+    The output file is selected with the ``-o`` option.  The output is a text file
+    following the PlantUML syntax.
 
-    For instance, the following command will generate the input file for PlantUML
-    from several header files and store the output to the ``output.puml`` file.
+    For instance, the following command will generate an input file for PlantUML
+    (``output.puml``) from several header files.
 
     .. code:: sh
         :name: usage-sh
@@ -2576,16 +2618,52 @@ org-file (converted to RST format).
     Module
     ~~~~~~
 
-    To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile`` can
-    then be used to create a PlantUML file from a set of input files.
+    To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
+    function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
     produce a string output instead of writing to a text file.
 
 
-    The full documentation is located at:
+    .. _sec-module-install:
 
-    - `Org-mode post <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
+    Installation
+    ------------
+
+    Using ``pip``
+    ~~~~~~~~~~~~~
+
+    The package is available on `PyPi <https://pypi.python.org/>`_ and can be installed using pip:
+
+    ::
+
+        pip install hpp2plantuml
+
+    From source
+    ~~~~~~~~~~~
+
+    The code uses ``setuptools``, so it can built using:
+
+    ::
+
+        python setup.py install
+
+    To build the documentation, run:
+
+    ::
+
+        python setup.py sphinx
+
+    To run the tests, run:
+
+    ::
+
+        python setup.py test
+
+
+    The full documentation is available via:
+
+    - `This org-mode post <https://thibaultmarin.github.io/blog/posts/2016-11-30-hpp2plantuml_-_Convert_C++_header_files_to_PlantUML.html>`_
     - `Read the docs <http://hpp2plantuml.readthedocs.io/en/latest/>`_
 
 .. _sec-package-doc:
@@ -2705,9 +2783,9 @@ content of the file is mostly following the defaults, with a few exceptions:
     # built documents.
     #
     # The short X.Y version.
-    version = u'v' + u'0.1'
+    version = u'v' + u'0.2'
     # The full version, including alpha/beta/rc tags.
-    release = u'v' + u'0.1'
+    release = u'v' + u'0.2'
 
     # The language for content autogenerated by Sphinx. Refer to documentation
     # for a list of supported languages.
@@ -2781,7 +2859,7 @@ content of the file is mostly following the defaults, with a few exceptions:
     # The name for this set of Sphinx documents.
     # "<project> v<release> documentation" by default.
     #
-    # html_title = u'hpp2plantuml ' + u'v' + u'0.1'
+    # html_title = u'hpp2plantuml ' + u'v' + u'0.2'
 
     # A shorter title for the navigation bar.  Default is the same as html_title.
     #
@@ -3019,7 +3097,7 @@ to the automatically generated and the org-file documents.
     `PlantUML <https://plantuml.com>`_ is a program rendering UML diagrams from plain text inputs using an
     expressive language.
 
-    This module generates the text input to PlantUML from C++ header files.  Its
+    This package generates the text input to PlantUML from C++ header files.  Its
     ambition is limited but it should produce reasonable conversion for simple class
     hierarchies.  It aims at supporting:
 
@@ -3029,6 +3107,9 @@ to the automatically generated and the org-file documents.
     - inheritance relationships,
 
     - aggregation relationships (very basic support).
+
+    The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+    files.
 
 
     .. _sec-module-usage:
@@ -3059,13 +3140,13 @@ to the automatically generated and the org-file documents.
                                 Input file (must be quoted when using wildcards)
 
 
-    Input files are added using the ``-i`` option.  Inputs can be file paths or
-    include wildcards.  Note that the double quotes are required when using
-    wildcards.  The output file is selected with the ``-o`` option.  The output is a
-    text file following the PlantUML syntax.
+    Input files are added using the ``-i`` option.  Inputs can be full file paths or
+    include wildcards.  Note that double quotes are required when using wildcards.
+    The output file is selected with the ``-o`` option.  The output is a text file
+    following the PlantUML syntax.
 
-    For instance, the following command will generate the input file for PlantUML
-    from several header files and store the output to the ``output.puml`` file.
+    For instance, the following command will generate an input file for PlantUML
+    (``output.puml``) from several header files.
 
     .. code:: sh
         :name: usage-sh
@@ -3075,8 +3156,8 @@ to the automatically generated and the org-file documents.
     Module
     ~~~~~~
 
-    To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile`` can
-    then be used to create a PlantUML file from a set of input files.
+    To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
+    function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
     produce a string output instead of writing to a text file.
@@ -3141,7 +3222,7 @@ passed by its CUSTOM\_ID property (as a string).  In addition, the output
 language can set (although rst is the only instance used in this document) and
 an additional flag ``children`` can be used to control whether the subsections of
 the target section are removed (``children = "remove"``) of kept (any other
-string, e.g. "keep").
+string, e.g. ``"keep"``).
 
 .. code:: common-lisp
     :name: el-org-exp
