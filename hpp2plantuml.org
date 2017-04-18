@@ -1561,9 +1561,10 @@ The package is available on [[https://pypi.python.org/][PyPi]] and can be instal
 pip install hpp2plantuml
 #+END_EXAMPLE
 
+
 ** DONE From source
 
-The code uses =setuptools=, so it can built using:
+The code uses =setuptools=, so it can be built using:
 
 #+BEGIN_EXAMPLE
 python setup.py install

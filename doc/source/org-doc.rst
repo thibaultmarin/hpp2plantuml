@@ -1582,7 +1582,7 @@ The package is available on `PyPi <https://pypi.python.org/>`_ and can be instal
 From source
 ~~~~~~~~~~~
 
-The code uses ``setuptools``, so it can built using:
+The code uses ``setuptools``, so it can be built using:
 
 ::
 
@@ -2642,7 +2642,7 @@ org-file (converted to RST format).
     From source
     ~~~~~~~~~~~
 
-    The code uses ``setuptools``, so it can built using:
+    The code uses ``setuptools``, so it can be built using:
 
     ::
 
