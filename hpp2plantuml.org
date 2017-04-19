@@ -1746,6 +1746,8 @@ the representation of variables.
 
 #+NAME: tbl-unittest-class_var
 #+CAPTION: List of test segments and corresponding PlantUML strings.
+| C++                                         | plantuml         |
+|---------------------------------------------+------------------|
 | "class Test {\npublic:\nint member; };"     | "+member : int"  |
 | "class Test {\nprivate:\nint * member; };"  | "-member : int*" |
 | "class Test {\nprotected:\nint &member; };" | "#member : int&" |
@@ -1780,6 +1782,8 @@ supported by PlantUML.
 
 #+NAME: tbl-unittest-class_method
 #+CAPTION: List of test segments and corresponding PlantUML strings.
+| C++                                                                            | plantuml                            |
+|--------------------------------------------------------------------------------+-------------------------------------|
 | "class Test {\npublic:\nint & func(int * a); };"                               | "+func(int* a) : int&"              |
 | "class Test {\npublic:\nstatic int func(int & a); };"                          | "+{static} func(int& a) : int"      |
 | "class Test {\nprivate:\nvirtual int * func() const = 0; };"                   | "-{abstract} func() : int* {query}" |
@@ -1815,6 +1819,8 @@ Table{{{tt}}}[[tbl-unittest-class]].  It includes templates and abstract classes
 
 #+NAME: tbl-unittest-class
 #+CAPTION: List of test segments and corresponding PlantUML strings.
+| C++                                                                | plantuml                                                                              |
+|--------------------------------------------------------------------+---------------------------------------------------------------------------------------|
 | "class Test {\nprotected:\nint & member; };"                       | "class Test {\n\t#member : int&\n}\n"                                                 |
 | "class Test\n{\npublic:\nvirtual int func() = 0; };"               | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                              |
 | "template <typename T> class Test{\nT* func(T& arg); };"           | "class Test <template <typename T>> {\n\t-func(T& arg) : T*\n}\n"                     |
@@ -1848,6 +1854,8 @@ Table{{{tt}}}[[tbl-unittest-enum]].
 
 #+NAME: tbl-unittest-enum
 #+CAPTION: List of test segments and corresponding PlantUML strings.
+| C++                                 | plantuml                                |
+|-------------------------------------+-----------------------------------------|
 | "enum Test { A, B, CD, E };"        | "enum Test {\n\tA\n\tB\n\tCD\n\tE\n}\n" |
 | "enum Test\n{\n A = 0, B = 12\n };" | "enum Test {\n\tA\n\tB\n}\n"            |
 
@@ -1881,8 +1889,10 @@ relationships (with and without count).
 
 #+NAME: tbl-unittest-link
 #+CAPTION: List of test segments and corresponding PlantUML strings.
-| "class A{};\nclass B : A{};"           | "A <@-- B"     |
-| "class A{};\nclass B : public A{};"    | "A <@-- B"     |
+| C++                                    | plantuml        |
+|----------------------------------------+-----------------|
+| "class A{};\nclass B : A{};"           | "A <@-- B"      |
+| "class A{};\nclass B : public A{};"    | "A <@-- B"      |
 | "class B{};\nclass A{B obj;};"         | "A o-- B"       |
 | "class B{};\nclass A{B obj; B* ptr;};" | "A \"2\" o-- B" |
 
@@ -2906,7 +2916,7 @@ The following source block is used to get the module's version number defined in
 [[hpp2plantuml-version][a single location]] and include it at multiple locations.
 
 #+NAME: get-version
-#+BEGIN_SRC emacs-lisp :var ver=hpp2plantuml-version :var lang="python"
+#+BEGIN_SRC emacs-lisp :var ver=hpp2plantuml-version :var lang="python" :eval yes
 (cond ((string= lang "python")
        (format "'%s'" ver)))
 #+END_SRC
@@ -2917,9 +2927,9 @@ The following source block is used to get the module's version number defined in
 The following source block converts the content of an org heading to rst format
 using the [[(rst-convert-region)][~org-rst-convert-region-to-rst~]] function.  The heading to process is
 passed by its CUSTOM_ID property (as a string).  In addition, the output
-language can set (although rst is the only instance used in this document) and
-an additional flag ~children~ can be used to control whether the subsections of
-the target section are removed (~children = "remove"~) of kept (any other
+language can be set (although rst is the only instance used in this document)
+and an additional flag ~children~ can be used to control whether the subsections
+of the target section are removed (~children = "remove"~) of kept (any other
 string, e.g. ~"keep"~).
 
 #+NAME: el-org-exp
