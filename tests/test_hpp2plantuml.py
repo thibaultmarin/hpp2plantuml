@@ -159,6 +159,10 @@ test_list_enum=[["enum Test { A, B, CD, E };", """enum Test {
 	A
 	B
 }
+"""], ["enum { A, B };", """enum empty {
+	A
+	B
+}
 """]]
 # %% Test enum objects
 

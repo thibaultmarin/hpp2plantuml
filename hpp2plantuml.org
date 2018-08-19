@@ -15,7 +15,7 @@ this single org-file.
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
-: 0.2
+: 0.3
 
 The source code can be found on GitHub:
 https://github.com/thibaultmarin/hpp2plantuml.
@@ -750,7 +750,7 @@ class Enum(Container):
         header_enum : CppEnum
             Parsed CppEnum object
         """
-        super().__init__('enum', header_enum['name'])
+        super().__init__('enum', header_enum.get('name', 'empty'))
         self.parse_members(header_enum)
 
     def parse_members(self, header_enum):
@@ -1389,6 +1389,7 @@ class Diagram(object):
 
 This section briefly describes the helper functions defined in the module.
 
+
 *** DONE Sanitize type string
 
 The ~_cleanup_type~ function tries to unify the string representation of
@@ -1516,7 +1517,7 @@ to parse input arguments.  The function passes the command line arguments to the
 [[#sec-module-create-uml][~CreatePlantUMLFile~]] function.
 
 #+NAME: py-cmd-main
-#+BEGIN_SRC python -r
+#+BEGIN_SRC python -r :noweb yes
 # %% Command line interface
 
 
@@ -1531,11 +1532,13 @@ def main():(ref:module-main)
     parser = argparse.ArgumentParser(description='hpp2plantuml tool.')
     parser.add_argument('-o', '--output-file', dest='output_file',
                         required=False, default=None, metavar='FILE',
-                        help='Output file')
+                        help='output file')
     parser.add_argument('-i', '--input-file', dest='input_files',
                         action='append', metavar='HEADER-FILE', required=True,
-                        help='Input file (must be quoted' +
+                        help='input file (must be quoted' +
                         ' when using wildcards)')
+    parser.add_argument('--version', action='version',
+                        version='%(prog)s ' + <<get-version()>>)
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file)
@@ -1858,6 +1861,7 @@ Table{{{tt}}}[[tbl-unittest-enum]].
 |-------------------------------------+-----------------------------------------|
 | "enum Test { A, B, CD, E };"        | "enum Test {\n\tA\n\tB\n\tCD\n\tE\n}\n" |
 | "enum Test\n{\n A = 0, B = 12\n };" | "enum Test {\n\tA\n\tB\n}\n"            |
+| "enum { A, B };"                    | "enum empty {\n\tA\n\tB\n}\n""          |
 
 
 #+NAME: test-unit-enum
@@ -2171,6 +2175,13 @@ examples:
 - https://hynek.me/articles/sharing-your-labor-of-love-pypi-quick-and-dirty/
 - https://python-packaging.readthedocs.io/en/latest/
 - https://packaging.python.org/distributing/
+
+To build, run ~python setup.py build bdist~, ~python setup.py build
+bdist_wheel~.  To upload to PyPI, run:
+
+#+begin_example
+twine upload -r pypi --sign dist/hpp2plantuml-*
+#+end_example
 
 
 ** DONE =__init__.py=
