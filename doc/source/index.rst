@@ -48,16 +48,17 @@ The command line usage is (``hpp2plantuml --help``):
 
 ::
 
-    usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
 
     hpp2plantuml tool.
 
     optional arguments:
       -h, --help            show this help message and exit
-      -o FILE, --output-file FILE
-                            Output file
       -i HEADER-FILE, --input-file HEADER-FILE
-                            Input file (must be quoted when using wildcards)
+                            input file (must be quoted when using wildcards)
+      -o FILE, --output-file FILE
+                            output file
+      --version             show program's version number and exit
 
 
 Input files are added using the ``-i`` option.  Inputs can be full file paths or

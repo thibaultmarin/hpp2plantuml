@@ -1098,13 +1098,13 @@ def main():
     Arguments are read from the command-line, run with ``--help`` for help.
     """
     parser = argparse.ArgumentParser(description='hpp2plantuml tool.')
-    parser.add_argument('-o', '--output-file', dest='output_file',
-                        required=False, default=None, metavar='FILE',
-                        help='output file')
     parser.add_argument('-i', '--input-file', dest='input_files',
                         action='append', metavar='HEADER-FILE', required=True,
                         help='input file (must be quoted' +
                         ' when using wildcards)')
+    parser.add_argument('-o', '--output-file', dest='output_file',
+                        required=False, default=None, metavar='FILE',
+                        help='output file')
     parser.add_argument('--version', action='version',
                         version='%(prog)s ' + '0.3')
     args = parser.parse_args()

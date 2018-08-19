@@ -1548,13 +1548,13 @@ to parse input arguments.  The function passes the command line arguments to the
         Arguments are read from the command-line, run with ``--help`` for help.
         """
         parser = argparse.ArgumentParser(description='hpp2plantuml tool.')
-        parser.add_argument('-o', '--output-file', dest='output_file',
-                            required=False, default=None, metavar='FILE',
-                            help='output file')
         parser.add_argument('-i', '--input-file', dest='input_files',
                             action='append', metavar='HEADER-FILE', required=True,
                             help='input file (must be quoted' +
                             ' when using wildcards)')
+        parser.add_argument('-o', '--output-file', dest='output_file',
+                            required=False, default=None, metavar='FILE',
+                            help='output file')
         parser.add_argument('--version', action='version',
                             version='%(prog)s ' + '0.3')
         args = parser.parse_args()
@@ -1618,16 +1618,17 @@ The command line usage is (``hpp2plantuml --help``):
 
 ::
 
-    usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
 
     hpp2plantuml tool.
 
     optional arguments:
       -h, --help            show this help message and exit
-      -o FILE, --output-file FILE
-                            Output file
       -i HEADER-FILE, --input-file HEADER-FILE
-                            Input file (must be quoted when using wildcards)
+                            input file (must be quoted when using wildcards)
+      -o FILE, --output-file FILE
+                            output file
+      --version             show program's version number and exit
 
 
 Input files are added using the ``-i`` option.  Inputs can be full file paths or
@@ -2285,16 +2286,17 @@ obtained using the source block described `sec-org-el-version`_.
 
     ::
 
-        usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
 
         hpp2plantuml tool.
 
         optional arguments:
           -h, --help            show this help message and exit
-          -o FILE, --output-file FILE
-                                Output file
           -i HEADER-FILE, --input-file HEADER-FILE
-                                Input file (must be quoted when using wildcards)
+                                input file (must be quoted when using wildcards)
+          -o FILE, --output-file FILE
+                                output file
+          --version             show program's version number and exit
 
 
     Input files are added using the ``-i`` option.  Inputs can be full file paths or
@@ -2610,16 +2612,17 @@ org-file (converted to RST format).
 
     ::
 
-        usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
 
         hpp2plantuml tool.
 
         optional arguments:
           -h, --help            show this help message and exit
-          -o FILE, --output-file FILE
-                                Output file
           -i HEADER-FILE, --input-file HEADER-FILE
-                                Input file (must be quoted when using wildcards)
+                                input file (must be quoted when using wildcards)
+          -o FILE, --output-file FILE
+                                output file
+          --version             show program's version number and exit
 
 
     Input files are added using the ``-i`` option.  Inputs can be full file paths or
@@ -3148,16 +3151,17 @@ to the automatically generated and the org-file documents.
 
     ::
 
-        usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
 
         hpp2plantuml tool.
 
         optional arguments:
           -h, --help            show this help message and exit
-          -o FILE, --output-file FILE
-                                Output file
           -i HEADER-FILE, --input-file HEADER-FILE
-                                Input file (must be quoted when using wildcards)
+                                input file (must be quoted when using wildcards)
+          -o FILE, --output-file FILE
+                                output file
+          --version             show program's version number and exit
 
 
     Input files are added using the ``-i`` option.  Inputs can be full file paths or
