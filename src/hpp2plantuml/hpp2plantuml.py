@@ -483,7 +483,7 @@ class Enum(Container):
         header_enum : CppEnum
             Parsed CppEnum object
         """
-        super().__init__('enum', header_enum['name'])
+        super().__init__('enum', header_enum.get('name','empty'))
         self.parse_members(header_enum)
 
     def parse_members(self, header_enum):
@@ -1105,6 +1105,7 @@ def main():
                         action='append', metavar='HEADER-FILE', required=True,
                         help='Input file (must be quoted' +
                         ' when using wildcards)')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.3')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file)
