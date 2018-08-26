@@ -27,14 +27,40 @@ class Class03 <template<typename T>> {
 	-_obj_list : list<Class02>
 }
 
+namespace Interface {
+	class Class04 {
+		+Class04()
+		+~Class04()
+		-_obj : Class01*
+		-_flag : bool
+	}
+}
+
+namespace Interface {
+	class Class04_derived {
+		+Class04_derived()
+		+~Class04_derived()
+		-_var : int
+	}
+}
+
 enum Enum01 {
 	VALUE_0
 	VALUE_1
 	VALUE_2
 }
 
-Class01 <|-- Class02
-Class03 "2" o-- Class01
-Class03 o-- Class02
+.Class01 <|-- .Class02
+
+namespace Interface {
+	Class04 <|-- Class04_derived
+}
+
+.Class03 "2" o-- .Class01
+
+.Class03 o-- .Class02
+
+Interface.Class04 o-- .Class01
+
 
 @enduml

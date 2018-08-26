@@ -129,6 +129,14 @@ T* func(T& arg); };""", """class Test <template <typename T>> {
 virtual T* func(T& arg)=0; };""", """abstract class Test <template <typename T>> {
 	-{abstract} func(T& arg) : T*
 }
+"""], ["""namespace Interface {
+class Test {
+protected:
+int & member; };};""", """namespace Interface {
+	class Test {
+		#member : int&
+	}
+}
 """]]
 # %% Test classes
 
@@ -181,10 +189,20 @@ class TestEnum:
                                                                   input_str))
 
 test_list_link=[["""class A{};
-class B : A{};""", "A <@-- B"], ["""class A{};
-class B : public A{};""", "A <@-- B"], ["""class B{};
-class A{B obj;};""", "A o-- B"], ["""class B{};
-class A{B obj; B* ptr;};""", "A \"2\" o-- B"]]
+class B : A{};""", """A <@-- B
+"""], ["""class A{};
+class B : public A{};""", """A <@-- B
+"""], ["""class B{};
+class A{B obj;};""", """A o-- B
+"""], ["""class B{};
+class A{B obj; B* ptr;};""", """A \"2\" o-- B
+"""], ["namespace T {class A{}; class B: A{};};", """namespace T {
+	A <@-- B
+}
+"""], ["""namespace T {
+class A{};};
+class B{T::A* _obj;};""", """.B o-- T.A
+"""]]
 class TestLink:
     def test_list_entries(self):
         for test_idx, (input_str, output_ref_str) in \
