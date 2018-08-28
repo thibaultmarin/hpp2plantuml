@@ -13,7 +13,7 @@ The current version of the code is:
 ::
     :name: hpp2plantuml-version
 
-    0.3
+    0.4
 
 The source code can be found on GitHub:
 `https://github.com/thibaultmarin/hpp2plantuml <https://github.com/thibaultmarin/hpp2plantuml>`_.
@@ -246,6 +246,7 @@ The ``Container`` class is abstract and contains:
             self._container_type = container_type
             self._name = name
             self._member_list = []
+            self._namespace = None
 
         def get_name(self):
             """Name property accessor
@@ -258,6 +259,22 @@ The ``Container`` class is abstract and contains:
             return self._name
 
         def parse_members(self, header_container):
+            """Initialize object from header
+
+            Extract object from CppHeaderParser dictionary representing a class, a
+            struct or an enum object.  This extracts the namespace.
+
+            Parameters
+            ----------
+            header_container : CppClass, CppStruct or CppEnum
+                Parsed header for container
+            """
+            namespace = header_container.get('namespace', None)
+            if namespace:
+                self._namespace = re.sub(':+$', '', namespace)
+            self._do_parsed_members(header_container)
+
+        def _do_parsed_members(self, header_container):
             """Initialize object from header (abstract method)
 
             Extract object from CppHeaderParser dictionary representing a class, a
@@ -269,7 +286,7 @@ The ``Container`` class is abstract and contains:
                 Parsed header for container
             """
             raise NotImplementedError(
-                'Derived class must implement :func:`parse_members`.')
+                'Derived class must implement :func:`_do_parse_members`.')
 
         def render(self):
             """Render object to string
@@ -283,6 +300,8 @@ The ``Container`` class is abstract and contains:
             for member in self._member_list:
                 container_str += '\t' + member.render() + '\n'
             container_str += '}\n'
+            if self._namespace is not None:
+                return wrap_namespace(container_str, self._namespace)
             return container_str
 
         def comparison_keys(self):
@@ -416,12 +435,13 @@ which is used to determine aggregation relationships between classes.
             self._abstract = header_class[1]['abstract']
             self._template_type = None
             if 'template' in header_class[1]:
-                self._template_type = header_class[1]['template']
+                self._template_type = _cleanup_single_line(
+                    header_class[1]['template'])
             self._inheritance_list = [re.sub('<.*>', '', parent['class'])
                                       for parent in header_class[1]['inherits']]
             self.parse_members(header_class[1])
 
-        def parse_members(self, header_class):
+        def _do_parsed_members(self, header_class):
             """Initialize class object from header
 
             This method extracts class member variables and methods from header.
@@ -764,7 +784,7 @@ the actual values.
             super().__init__('enum', header_enum.get('name', 'empty'))
             self.parse_members(header_enum)
 
-        def parse_members(self, header_enum):
+        def _do_parsed_members(self, header_enum):
             """Extract enum values from header
 
             Parameters
@@ -772,7 +792,7 @@ the actual values.
             header_enum : CppEnum
                 Parsed `CppEnum` object
             """
-            for value in header_enum['values']:
+            for value in header_enum.get('values', []):
                 self._member_list.append(EnumValue(value['name']))
 
 
@@ -833,7 +853,7 @@ strings and the text representation of a connection link is obtained from the
         This includes a parent/child pair and a relationship type (e.g. inheritance
         or aggregation).
         """
-        def __init__(self, link_type, c_parent, c_child):
+        def __init__(self, link_type, c_parent, c_child, flag_use_namespace=False):
             """Constructor
 
             Parameters
@@ -845,9 +865,12 @@ strings and the text representation of a connection link is obtained from the
             c_child : str
                 Name of child class
             """
-            self._parent = c_parent
-            self._child = c_child
+            self._parent = c_parent.get_name()
+            self._child = c_child.get_name()
             self._link_type = link_type
+            self._parent_namespace = c_parent._namespace or None
+            self._child_namespace = c_child._namespace or None
+            self._flag_use_namespace = flag_use_namespace
 
         def comparison_keys(self):
             """Order comparison key between `ClassRelationship` objects
@@ -862,6 +885,32 @@ strings and the text representation of a connection link is obtained from the
             """
             return self._parent, self._child, self._link_type
 
+        def _render_name(self, class_name, class_namespace, flag_use_namespace):
+            """Render class name with namespace prefix if necessary
+
+            Parameters
+            ----------
+            class_name : str
+               Name of the class
+            class_namespace : str
+                Namespace or None if the class is defined in the default namespace
+            flag_use_namespace : bool
+                When False, do not use the namespace
+
+            Returns
+            -------
+            str
+                Class name with appropriate prefix for use with link rendering
+            """
+            if not flag_use_namespace:
+                return class_name
+
+            if class_namespace is None:
+                prefix = '.'
+            else:
+                prefix = class_namespace + '.'
+            return prefix + class_name
+
         def render(self):
             """Render class relationship to string
 
@@ -875,8 +924,29 @@ strings and the text representation of a connection link is obtained from the
                 The string representation of the class relationship following the
                 PlantUML syntax
             """
-            return self._parent + ' ' + self._render_link_type() + \
-                ' ' + self._child
+            link_str = ''
+
+            # Wrap the link in namespace block (if both parent and child are in the
+            # same namespace)
+            namespace_wrap = None
+            if self._parent_namespace == self._child_namespace and \
+               self._parent_namespace is not None:
+                namespace_wrap = self._parent_namespace
+
+            # Prepend the namespace to the class name
+            flag_render_namespace = self._flag_use_namespace and not namespace_wrap
+            parent_str = self._render_name(self._parent, self._parent_namespace,
+                                           flag_render_namespace)
+            child_str = self._render_name(self._child, self._child_namespace,
+                                          flag_render_namespace)
+
+            # Link string
+            link_str += parent_str + ' ' + self._render_link_type() + \
+                        ' ' + child_str + '\n'
+
+            if namespace_wrap is not None:
+                return wrap_namespace(link_str, namespace_wrap)
+            return link_str
 
         def _render_link_type(self):
             """Internal representation of link
@@ -910,7 +980,7 @@ The inheritance relationship is a straightforward specialization of the base
         This module extends the base `ClassRelationship` class by setting the link
         type to ``inherit``.
         """
-        def __init__(self, c_parent, c_child):
+        def __init__(self, c_parent, c_child, **kwargs):
             """Constructor
 
             Parameters
@@ -919,8 +989,10 @@ The inheritance relationship is a straightforward specialization of the base
                 Parent class
             c_child : str
                 Derived class
+            kwargs : dict
+                Additional parameters passed to parent class
             """
-            super().__init__('inherit', c_parent, c_child)
+            super().__init__('inherit', c_parent, c_child, **kwargs)
 
 Aggregation
 :::::::::::
@@ -947,7 +1019,7 @@ count is omitted when equal to one).
         variable type (possibly within a container such as a list) in a class
         definition.
         """
-        def __init__(self, c_parent, c_child, c_count=1):
+        def __init__(self, c_parent, c_child, c_count=1, **kwargs):
             """Constructor
 
             Parameters
@@ -960,8 +1032,10 @@ count is omitted when equal to one).
             c_cout : int
                 The number of members of ``c_child`` that are of type (possibly
                 through containers) ``c_parent``
+            kwargs : dict
+                Additional parameters passed to parent class
             """
-            super().__init__('aggregation', c_parent, c_child)
+            super().__init__('aggregation', c_parent, c_child, **kwargs)
             self._count = c_count
 
         def _render_link_type(self):
@@ -1255,6 +1329,18 @@ be used to avoid this sorting step.
                 for obj in container_iterator(objects):
                     self._objects.append(container_handler(obj))
 
+        def _make_class_list(self):
+            """Build list of classes
+
+            Returns
+            -------
+            list(dict)
+                Each entry is a dictionary with keys ``name`` (class name) and
+                ``obj`` the instance of the `Class` class
+            """
+            return [{'name': obj.get_name(), 'obj': obj}
+                    for obj in self._objects if isinstance(obj, Class)]
+
         def build_inheritance_list(self):
             """Build list of inheritance between objects
 
@@ -1268,8 +1354,9 @@ be used to avoid this sorting step.
             """
             self._inheritance_list = []
             # Build list of classes in diagram
-            class_list = [obj.get_name() for obj in self._objects
-                          if isinstance(obj, Class)]
+            class_list_obj = self._make_class_list()
+            class_list = [c['name'] for c in class_list_obj]
+            flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
 
             # Create relationships
 
@@ -1279,8 +1366,12 @@ be used to avoid this sorting step.
                 if isinstance(obj, Class):
                     for parent in obj.build_inheritance_list():
                         if parent in class_list:
+                            parent_obj = class_list_obj[
+                                class_list.index(parent)]['obj']
                             self._inheritance_list.append(
-                                ClassInheritanceRelationship(parent, obj_name))
+                                ClassInheritanceRelationship(
+                                    parent_obj, obj,
+                                    flag_use_namespace=flag_use_namespace))
 
         def build_aggregation_list(self):
             """Build list of aggregation relationships
@@ -1296,8 +1387,10 @@ be used to avoid this sorting step.
             """
             self._aggregation_list = []
             # Build list of classes in diagram
-            class_list = [obj.get_name() for obj in self._objects
-                          if isinstance(obj, Class)]
+            # Build list of classes in diagram
+            class_list_obj = self._make_class_list()
+            class_list = [c['name'] for c in class_list_obj]
+            flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
 
             # Build member type list
             variable_type_list = {}
@@ -1318,9 +1411,14 @@ be used to avoid this sorting step.
                                                    child_class)
             for obj_class, obj_comp_list in aggregation_counts.items():
                 for comp_parent, comp_count in obj_comp_list:
+                    obj_class_idx = class_list.index(obj_class)
+                    obj_class_obj = class_list_obj[obj_class_idx]['obj']
+                    comp_parent_idx = class_list.index(comp_parent)
+                    comp_parent_obj = class_list_obj[comp_parent_idx]['obj']
                     self._aggregation_list.append(
-                        ClassAggregationRelationship(obj_class, comp_parent,
-                                                     comp_count))
+                        ClassAggregationRelationship(
+                            obj_class_obj, comp_parent_obj, comp_count,
+                            flag_use_namespace=flag_use_namespace))
 
         def _augment_comp(self, c_dict, c_parent, c_child):
             """Increment the aggregation reference count
@@ -1408,8 +1506,8 @@ Helper functions
 
 This section briefly describes the helper functions defined in the module.
 
-Sanitize type string
-^^^^^^^^^^^^^^^^^^^^
+Sanitize strings
+^^^^^^^^^^^^^^^^
 
 The ``_cleanup_type`` function tries to unify the string representation of
 variable types by eliminating spaces around ``\*`` characters.
@@ -1438,6 +1536,32 @@ variable types by eliminating spaces around ``\*`` characters.
         """
         return re.sub(r'[ ]+([*&])', r'\1',
                       re.sub(r'(\s)+', r'\1', type_str))
+
+The ``_cleanup_single_line`` function transforms a multiline input string into a
+single string version.
+
+.. code:: python
+    :name: py-helper-cleanup-line
+
+    # %% Single line version of string
+
+
+    def _cleanup_single_line(input_str):
+        """Cleanup string representing a C++ type
+
+        Remove line returns
+
+        Parameters
+        ----------
+        input_str : str
+            A string possibly spreading multiple lines
+
+        Returns
+        -------
+        str
+            The type string in a single line
+        """
+        return re.sub(r'\s+', ' ', re.sub(r'(\r)?\n', ' ', input_str))
 
 Expand file list
 ^^^^^^^^^^^^^^^^
@@ -1475,6 +1599,35 @@ existing filenames without wildcards.
         for input_file in input_files:
             file_list += glob.glob(input_file)
         return file_list
+
+Namespace wrapper
+^^^^^^^^^^^^^^^^^
+
+The ``wrap_namespace`` function wraps a rendered PlantUML string in a ``namespace``
+block.
+
+.. code:: python
+    :name: py-help-namespace
+
+    def wrap_namespace(input_str, namespace):
+        """Wrap string in namespace
+
+        Parameters
+        ----------
+        input_str : str
+            String containing PlantUML code
+        namespace : str
+           Namespace name
+
+        Returns
+        -------
+        str
+            ``input_str`` wrapped in ``namespace`` block
+        """
+        return 'namespace {} {{\n'.format(namespace) + \
+            '\n'.join([re.sub('^', '\t', line)
+                       for line in input_str.splitlines()]) + \
+            '\n}\n'
 
 .. _sec-module-create-uml:
 
@@ -1556,7 +1709,7 @@ to parse input arguments.  The function passes the command line arguments to the
                             required=False, default=None, metavar='FILE',
                             help='output file')
         parser.add_argument('--version', action='version',
-                            version='%(prog)s ' + '0.3')
+                            version='%(prog)s ' + '0.4')
         args = parser.parse_args()
         if len(args.input_files) > 0:
             CreatePlantUMLFile(args.input_files, args.output_file)
@@ -1852,18 +2005,19 @@ Table `tbl-unittest-class`_.  It includes templates and abstract classes.
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-class
 
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | C++                                                                 | plantuml                                                                               |
-    +=====================================================================+========================================================================================+
-    | "class Test {\nprotected:\nint & member; };"                        | "class Test {\n\t#member : int&\n}\n"                                                  |
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "class Test\n{\npublic:\nvirtual int func() = 0; };"                | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                               |
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "template <typename T> class Test{\nT* func(T& arg); };"            | "class Test <template <typename T>> {\n\t-func(T& arg) : T\*\n}\n"                     |
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "template <typename T> class Test{\nvirtual T\* func(T& arg)=0; };" | "abstract class Test <template <typename T>> {\n\t-{abstract} func(T& arg) : T\*\n}\n" |
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-
+    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+    | C++                                                                   | plantuml                                                                               |
+    +=======================================================================+========================================================================================+
+    | "class Test {\nprotected:\nint & member; };"                          | "class Test {\n\t#member : int&\n}\n"                                                  |
+    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+    | "class Test\n{\npublic:\nvirtual int func() = 0; };"                  | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                               |
+    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+    | "template <typename T> class Test{\nT* func(T& arg); };"              | "class Test <template <typename T>> {\n\t-func(T& arg) : T\*\n}\n"                     |
+    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+    | "template <typename T> class Test{\nvirtual T\* func(T& arg)=0; };"   | "abstract class Test <template <typename T>> {\n\t-{abstract} func(T& arg) : T\*\n}\n" |
+    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+    | "namespace Interface {\nclass Test {\nprotected:\nint & member; };};" | "namespace Interface {\n\tclass Test {\n\t\t#member : int&\n\t}\n}\n"                  |
+    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
 
 .. code:: python
     :name: test-unit-class
@@ -1934,17 +2088,21 @@ relationships (with and without count).
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-link
 
-    +-----------------------------------------+-------------------+
-    | C++                                     | plantuml          |
-    +=========================================+===================+
-    | "class A{};\nclass B : A{};"            | "A <@-- B"        |
-    +-----------------------------------------+-------------------+
-    | "class A{};\nclass B : public A{};"     | "A <@-- B"        |
-    +-----------------------------------------+-------------------+
-    | "class B{};\nclass A{B obj;};"          | "A o-- B"         |
-    +-----------------------------------------+-------------------+
-    | "class B{};\nclass A{B obj; B\* ptr;};" | "A \\"2\\" o-- B" |
-    +-----------------------------------------+-------------------+
+    +----------------------------------------------------------+----------------------------------+
+    | C++                                                      | plantuml                         |
+    +==========================================================+==================================+
+    | "class A{};\nclass B : A{};"                             | "A <@-- B\n"                     |
+    +----------------------------------------------------------+----------------------------------+
+    | "class A{};\nclass B : public A{};"                      | "A <@-- B\n"                     |
+    +----------------------------------------------------------+----------------------------------+
+    | "class B{};\nclass A{B obj;};"                           | "A o-- B\n"                      |
+    +----------------------------------------------------------+----------------------------------+
+    | "class B{};\nclass A{B obj; B\* ptr;};"                  | "A \\"2\\" o-- B\n"              |
+    +----------------------------------------------------------+----------------------------------+
+    | "namespace T {class A{}; class B: A{};};"                | "namespace T {\n\tA <@-- B\n}\n" |
+    +----------------------------------------------------------+----------------------------------+
+    | "namespace T {\nclass A{};};\nclass B{T\:\:A\* \_obj;};" | ".B o-- T.A\n"                   |
+    +----------------------------------------------------------+----------------------------------+
 
 
 .. code:: python
@@ -2027,6 +2185,27 @@ The following can be extended to improve testing, as long as the corresponding
     	T* _typed_obj;
     };
 
+    namespace Interface {
+
+    	class Class04 {
+    	public:
+    		Class04();
+    		~Class04();
+    	private:
+    		bool _flag;
+    		Class01* _obj;
+    	};
+
+    	class Class04_derived : public Class04 {
+    	public:
+    		Class04_derived();
+    		~Class04_derived();
+    	private:
+    		int _var;
+    	};
+
+    };
+
 .. _sec-test-system-ref:
 
 Reference output
@@ -2069,15 +2248,41 @@ The comparison takes into account the white space, indentation, etc.
     	-_obj_list : list<Class02>
     }
 
+    namespace Interface {
+    	class Class04 {
+    		+Class04()
+    		+~Class04()
+    		-_obj : Class01*
+    		-_flag : bool
+    	}
+    }
+
+    namespace Interface {
+    	class Class04_derived {
+    		+Class04_derived()
+    		+~Class04_derived()
+    		-_var : int
+    	}
+    }
+
     enum Enum01 {
     	VALUE_0
     	VALUE_1
     	VALUE_2
     }
 
-    Class01 <|-- Class02
-    Class03 "2" o-- Class01
-    Class03 o-- Class02
+    .Class01 <|-- .Class02
+
+    namespace Interface {
+    	Class04 <|-- Class04_derived
+    }
+
+    .Class03 "2" o-- .Class01
+
+    .Class03 o-- .Class02
+
+    Interface.Class04 o-- .Class01
+
 
     @enduml
 
@@ -2325,7 +2530,7 @@ obtained using the source block described `sec-org-el-version`_.
 
     __title__ = "hpp2plantuml"
     __description__ = "Convert C++ header files to PlantUML"
-    __version__ = '0.3'
+    __version__ = '0.4'
     __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
     __doc__ = __description__ + " <" + __uri__ + ">"
     __author__ = "Thibault Marin"
@@ -2806,9 +3011,9 @@ content of the file is mostly following the defaults, with a few exceptions:
     # built documents.
     #
     # The short X.Y version.
-    version = u'v' + u'0.3'
+    version = u'v' + u'0.4'
     # The full version, including alpha/beta/rc tags.
-    release = u'v' + u'0.3'
+    release = u'v' + u'0.4'
 
     # The language for content autogenerated by Sphinx. Refer to documentation
     # for a list of supported languages.
@@ -2882,7 +3087,7 @@ content of the file is mostly following the defaults, with a few exceptions:
     # The name for this set of Sphinx documents.
     # "<project> v<release> documentation" by default.
     #
-    # html_title = u'hpp2plantuml ' + u'v' + u'0.3'
+    # html_title = u'hpp2plantuml ' + u'v' + u'0.4'
 
     # A shorter title for the navigation bar.  Default is the same as html_title.
     #
