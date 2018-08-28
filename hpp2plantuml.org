@@ -15,7 +15,7 @@ this single org-file.
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
-: 0.3
+: 0.4
 
 The source code can be found on GitHub:
 https://github.com/thibaultmarin/hpp2plantuml.

@@ -1244,7 +1244,7 @@ def main():
                         required=False, default=None, metavar='FILE',
                         help='output file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.3')
+                        version='%(prog)s ' + '0.4')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file)
