@@ -1744,7 +1744,7 @@ to parse input arguments.  The function passes the command line arguments to the
                             required=False, default=None, metavar='FILE',
                             help='output file')
         parser.add_argument('-t', '--template-file', dest='template_file',
-                            required=False, default=None, metavar='JINJA2-FILE',
+                            required=False, default=None, metavar='JINJA-FILE',
                             help='path to jinja2 template file')
         parser.add_argument('--version', action='version',
                             version='%(prog)s ' + '0.5')
@@ -1810,7 +1810,7 @@ The command line usage is (``hpp2plantuml --help``):
 
 ::
 
-    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
+    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA-FILE] [--version]
 
     hpp2plantuml tool.
 
@@ -1820,7 +1820,7 @@ The command line usage is (``hpp2plantuml --help``):
                             input file (must be quoted when using wildcards)
       -o FILE, --output-file FILE
                             output file
-      -t JINJA2-FILE, --template-file JINJA2-FILE
+      -t JINJA-FILE, --template-file JINJA-FILE
                             path to jinja2 template file
       --version             show program's version number and exit
 
@@ -2619,7 +2619,7 @@ obtained using the source block described `sec-org-el-version`_.
 
     ::
 
-        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA-FILE] [--version]
 
         hpp2plantuml tool.
 
@@ -2629,7 +2629,7 @@ obtained using the source block described `sec-org-el-version`_.
                                 input file (must be quoted when using wildcards)
           -o FILE, --output-file FILE
                                 output file
-          -t JINJA2-FILE, --template-file JINJA2-FILE
+          -t JINJA-FILE, --template-file JINJA-FILE
                                 path to jinja2 template file
           --version             show program's version number and exit
 
@@ -2974,7 +2974,7 @@ org-file (converted to RST format).
 
     ::
 
-        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA-FILE] [--version]
 
         hpp2plantuml tool.
 
@@ -2984,7 +2984,7 @@ org-file (converted to RST format).
                                 input file (must be quoted when using wildcards)
           -o FILE, --output-file FILE
                                 output file
-          -t JINJA2-FILE, --template-file JINJA2-FILE
+          -t JINJA-FILE, --template-file JINJA-FILE
                                 path to jinja2 template file
           --version             show program's version number and exit
 
@@ -3541,7 +3541,7 @@ to the automatically generated and the org-file documents.
 
     ::
 
-        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA-FILE] [--version]
 
         hpp2plantuml tool.
 
@@ -3551,7 +3551,7 @@ to the automatically generated and the org-file documents.
                                 input file (must be quoted when using wildcards)
           -o FILE, --output-file FILE
                                 output file
-          -t JINJA2-FILE, --template-file JINJA2-FILE
+          -t JINJA-FILE, --template-file JINJA-FILE
                                 path to jinja2 template file
           --version             show program's version number and exit
 

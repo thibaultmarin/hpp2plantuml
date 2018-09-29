@@ -1223,7 +1223,7 @@ def main():
                         required=False, default=None, metavar='FILE',
                         help='output file')
     parser.add_argument('-t', '--template-file', dest='template_file',
-                        required=False, default=None, metavar='JINJA2-FILE',
+                        required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
                         version='%(prog)s ' + '0.5')

@@ -37,7 +37,7 @@ The command line usage is (``hpp2plantuml --help``):
 
 ::
 
-    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
+    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA-FILE] [--version]
 
     hpp2plantuml tool.
 
@@ -47,7 +47,7 @@ The command line usage is (``hpp2plantuml --help``):
                             input file (must be quoted when using wildcards)
       -o FILE, --output-file FILE
                             output file
-      -t JINJA2-FILE, --template-file JINJA2-FILE
+      -t JINJA-FILE, --template-file JINJA-FILE
                             path to jinja2 template file
       --version             show program's version number and exit
 
