@@ -1870,7 +1870,8 @@ To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
 function can then be used to create a PlantUML file from a set of input files.
 Alternatively, the ``Diagram`` object can be used directly to build internal
 objects (from files or strings).  The ``Diagram.render()`` method can be used to
-produce a string output instead of writing to a text file.
+produce a string output instead of writing to a text file.  See the API
+documentation for more details.
 
 Tests
 -----
@@ -2678,7 +2679,8 @@ obtained using the source block described `sec-org-el-version`_.
     function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
-    produce a string output instead of writing to a text file.
+    produce a string output instead of writing to a text file.  See the API
+    documentation for more details.
 
     """
 
@@ -3032,7 +3034,8 @@ org-file (converted to RST format).
     function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
-    produce a string output instead of writing to a text file.
+    produce a string output instead of writing to a text file.  See the API
+    documentation for more details.
 
 
     .. _sec-module-install:
@@ -3598,7 +3601,8 @@ to the automatically generated and the org-file documents.
     function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
-    produce a string output instead of writing to a text file.
+    produce a string output instead of writing to a text file.  See the API
+    documentation for more details.
 
 
     Module documentation generated from docstrings
