@@ -325,9 +325,28 @@ class TestFullDiagram():
 
         # Output to file
         output_fname = 'output.puml'
-        hpp2plantuml.CreatePlantUMLFile(file_list, output_fname)
-        output_fcontent = ''
-        with open(output_fname, 'rt') as fid:
-            output_fcontent = fid.read()
-        nt.assert_equal(self._diag_saved_ref, output_fcontent)
+        for template in [None, os.path.join(test_fold,
+                                            'custom_template.puml')]:
+            hpp2plantuml.CreatePlantUMLFile(file_list, output_fname,
+                                            template_file=template)
+            output_fcontent = ''
+            with open(output_fname, 'rt') as fid:
+                output_fcontent = fid.read()
+            if template is None:
+                # Default template check
+                nt.assert_equal(self._diag_saved_ref, output_fcontent)
+            else:
+                # Check that all lines of reference are in the output
+                ref_re = re.search('(@startuml)\s*(.*)', self._diag_saved_ref,
+                                   re.DOTALL)
+                assert ref_re
+                # Build regular expression: allow arbitrary text between
+                # @startuml and the rest of the string
+                ref_groups = ref_re.groups()
+                match_re = re.compile('\n'.join([
+                    re.escape(ref_groups[0]),    # @startuml line
+                    '.*',                        # preamble
+                    re.escape(ref_groups[1])]),  # main output
+                                      re.DOTALL)
+                nt.assert_true(match_re.search(output_fcontent))
         os.unlink(output_fname)

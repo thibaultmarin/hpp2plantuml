@@ -1155,15 +1155,16 @@ be used to avoid this sorting step.
             does not create objects or relationships.
             """
             self.clear()
+            loader_list = []
             if template_file is not None:
+                loader_list.append(jinja2.FileSystemLoader(
+                    os.path.abspath(os.path.dirname(template_file))))
                 self._template_file = os.path.basename(template_file)
             else:
                 self._template_file = 'default.puml'
-            self._env = jinja2.Environment(loader=jinja2.ChoiceLoader([
-                jinja2.FileSystemLoader(
-                    os.path.abspath(os.path.dirname(template_file))),
-                jinja2.PackageLoader('hpp2plantuml', 'templates')]),
-                                           keep_trailing_newline=True)
+            loader_list.append(jinja2.PackageLoader('hpp2plantuml', 'templates'))
+            self._env = jinja2.Environment(loader=jinja2.ChoiceLoader(
+                loader_list), keep_trailing_newline=True)
 
         def clear(self):
             """Reinitiliaze object"""
@@ -2287,6 +2288,9 @@ The comparison takes into account the white space, indentation, etc.
     @startuml
 
 
+
+
+
     /' Objects '/
 
     abstract class Class01 {
@@ -2389,7 +2393,20 @@ The system test validates the following:
 
 - object reset,
 
-- the ``CreatePlantUMLFile`` interface, including stdout and file output.
+- the ``CreatePlantUMLFile`` interface, including stdout and file output.  This
+  test also includes a run with custom template.
+
+::
+
+    :name: test-full-template
+
+    {% extends 'default.puml' %}
+
+    {% block preamble %}
+    title "This is a title"
+    skinparam backgroundColor #EEEBDC
+    skinparam handwritten true
+    {% endblock %}
 
 
 .. code:: python
@@ -2502,11 +2519,30 @@ The system test validates the following:
 
             # Output to file
             output_fname = 'output.puml'
-            hpp2plantuml.CreatePlantUMLFile(file_list, output_fname)
-            output_fcontent = ''
-            with open(output_fname, 'rt') as fid:
-                output_fcontent = fid.read()
-            nt.assert_equal(self._diag_saved_ref, output_fcontent)
+            for template in [None, os.path.join(test_fold,
+                                                'custom_template.puml')]:
+                hpp2plantuml.CreatePlantUMLFile(file_list, output_fname,
+                                                template_file=template)
+                output_fcontent = ''
+                with open(output_fname, 'rt') as fid:
+                    output_fcontent = fid.read()
+                if template is None:
+                    # Default template check
+                    nt.assert_equal(self._diag_saved_ref, output_fcontent)
+                else:
+                    # Check that all lines of reference are in the output
+                    ref_re = re.search('(@startuml)\s*(.*)', self._diag_saved_ref,
+                                       re.DOTALL)
+                    assert ref_re
+                    # Build regular expression: allow arbitrary text between
+                    # @startuml and the rest of the string
+                    ref_groups = ref_re.groups()
+                    match_re = re.compile('\n'.join([
+                        re.escape(ref_groups[0]),    # @startuml line
+                        '.*',                        # preamble
+                        re.escape(ref_groups[1])]),  # main output
+                                          re.DOTALL)
+                    nt.assert_true(match_re.search(output_fcontent))
             os.unlink(output_fname)
 
 Packaging
