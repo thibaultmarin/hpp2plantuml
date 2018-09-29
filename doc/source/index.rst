@@ -84,12 +84,11 @@ parameter):
 
     hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
 
-This will use the ``template.puml`` file as template.  Templates follow the
-```jinja`` <http://jinja.pocoo.org/>`_ syntax.  For instance, to add a preamble to the PlantUML output, the
-template file may contain:
+This will use the ``template.puml`` file as template.  Templates follow the `jinja <http://jinja.pocoo.org/>`_
+syntax.  For instance, to add a preamble to the PlantUML output, the template
+file may contain:
 
 ::
-    :name: usage-template
 
     {% extends 'default.puml' %}
 
