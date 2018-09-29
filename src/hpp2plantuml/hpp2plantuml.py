@@ -1,9 +1,11 @@
 # %% Imports
 
+import os
 import re
 import glob
 import argparse
 import CppHeaderParser
+import jinja2
 
 # %% Constants
 
@@ -747,19 +749,29 @@ class Diagram(object):
     Each method has versions for file and string inputs and folder string lists
     and file lists inputs.
     """
-    def __init__(self):
+    def __init__(self, template_file=None):
         """Constructor
 
         The `Diagram` class constructor simply initializes object lists.  It
         does not create objects or relationships.
         """
-        self._objects = []
-        self._inheritance_list = []
-        self._aggregation_list = []
+        self.clear()
+        loader_list = []
+        if template_file is not None:
+            loader_list.append(jinja2.FileSystemLoader(
+                os.path.abspath(os.path.dirname(template_file))))
+            self._template_file = os.path.basename(template_file)
+        else:
+            self._template_file = 'default.puml'
+        loader_list.append(jinja2.PackageLoader('hpp2plantuml', 'templates'))
+        self._env = jinja2.Environment(loader=jinja2.ChoiceLoader(
+            loader_list), keep_trailing_newline=True)
 
     def clear(self):
         """Reinitiliaze object"""
-        self.__init__()
+        self._objects = []
+        self._inheritance_list = []
+        self._aggregation_list = []
 
     def _sort_list(input_list):
         """Sort list using `ClassRelationship` comparison
@@ -1065,45 +1077,10 @@ class Diagram(object):
             String containing the full string representation of the `Diagram`
             object, including objects and object relationships
         """
-        # Preamble
-        diagram_str = self._preamble()
-
-        # Objects
-        for obj in self._objects:
-            diagram_str += obj.render() + '\n'
-
-        # Inheritance
-        for inherit in self._inheritance_list:
-            diagram_str += inherit.render() + '\n'
-
-        # Aggregation
-        for comp in self._aggregation_list:
-            diagram_str += comp.render() + '\n'
-
-        # Postamble
-        diagram_str += self._postamble()
-
-        return diagram_str
-
-    def _preamble(self):
-        """PlantUML preamble text
-
-        Returns
-        -------
-        str
-            The PlantUML preamble text: ``@startuml``
-        """
-        return '@startuml\n'
-
-    def _postamble(self):
-        """PlantUML postamble text
-
-        Returns
-        -------
-        str
-            The PlantUML postamble text: ``@enduml``
-        """
-        return '\n@enduml\n'
+        template = self._env.get_template(self._template_file)
+        return template.render(objects=self._objects,
+                               inheritance_list=self._inheritance_list,
+                               aggregation_list=self._aggregation_list)
 
 # %% Cleanup object type string
 
@@ -1196,8 +1173,8 @@ def wrap_namespace(input_str, namespace):
 # %% Main function
 
 
-def CreatePlantUMLFile(file_list, output_file=None):
-    """ Create PlantUML file from list of header files
+def CreatePlantUMLFile(file_list, output_file=None, template_file=None):
+    """Create PlantUML file from list of header files
 
     This function parses a list of C++ header files and generates a file for
     use with PlantUML.
@@ -1209,12 +1186,14 @@ def CreatePlantUMLFile(file_list, output_file=None):
         :func:`expand_file_list` function)
     output_file : str
         Name of the output file
+    template_file : str
+        When not None, the name of the jinja2 template file used for rendering
     """
     if isinstance(file_list, str):
         file_list_c = [file_list, ]
     else:
         file_list_c = file_list
-    diag = Diagram()
+    diag = Diagram(template_file=template_file)
     diag.create_from_file_list(list(set(expand_file_list(file_list_c))))
     diag_render = diag.render()
 
@@ -1243,11 +1222,15 @@ def main():
     parser.add_argument('-o', '--output-file', dest='output_file',
                         required=False, default=None, metavar='FILE',
                         help='output file')
+    parser.add_argument('-t', '--template-file', dest='template_file',
+                        required=False, default=None, metavar='JINJA2-FILE',
+                        help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.4')
+                        version='%(prog)s ' + '0.5')
     args = parser.parse_args()
     if len(args.input_files) > 0:
-        CreatePlantUMLFile(args.input_files, args.output_file)
+        CreatePlantUMLFile(args.input_files, args.output_file,
+                           template_file=args.template_file)
 
 # %% Standalone mode
 

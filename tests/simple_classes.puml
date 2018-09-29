@@ -1,4 +1,11 @@
 @startuml
+
+
+
+
+
+/' Objects '/
+
 abstract class Class01 {
 	+{abstract} AbstractPublicMethod(int param) : bool
 	+PublicMethod(int param) : bool {query}
@@ -10,6 +17,7 @@ abstract class Class01 {
 	+public_var : int
 }
 
+
 class Class02 {
 	+AbstractPublicMethod(int param) : bool
 	-_AbstractMethod(int param) : bool
@@ -17,6 +25,7 @@ class Class02 {
 	-{static} _StaticPrivateMethod(bool param) : bool
 	-_private_var : int
 }
+
 
 class Class03 <template<typename T>> {
 	+Class03()
@@ -27,6 +36,7 @@ class Class03 <template<typename T>> {
 	-_obj_list : list<Class02>
 }
 
+
 namespace Interface {
 	class Class04 {
 		+Class04()
@@ -36,6 +46,7 @@ namespace Interface {
 	}
 }
 
+
 namespace Interface {
 	class Class04_derived {
 		+Class04_derived()
@@ -44,23 +55,41 @@ namespace Interface {
 	}
 }
 
+
 enum Enum01 {
 	VALUE_0
 	VALUE_1
 	VALUE_2
 }
 
+
+
+
+
+/' Inheritance relationships '/
+
 .Class01 <|-- .Class02
+
 
 namespace Interface {
 	Class04 <|-- Class04_derived
 }
 
+
+
+
+
+/' Aggregation relationships '/
+
 .Class03 "2" o-- .Class01
+
 
 .Class03 o-- .Class02
 
+
 Interface.Class04 o-- .Class01
+
+
 
 
 @enduml

@@ -43,7 +43,7 @@ The command line usage is (``hpp2plantuml --help``):
 
 ::
 
-    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
+    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
 
     hpp2plantuml tool.
 
@@ -53,6 +53,8 @@ The command line usage is (``hpp2plantuml --help``):
                             input file (must be quoted when using wildcards)
       -o FILE, --output-file FILE
                             output file
+      -t JINJA2-FILE, --template-file JINJA2-FILE
+                            path to jinja2 template file
       --version             show program's version number and exit
 
 
@@ -68,6 +70,31 @@ For instance, the following command will generate an input file for PlantUML
     :name: usage-sh
 
     hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
+
+To customize the output PlantUML file, templates can be used (using the ``-t``
+parameter):
+
+.. code:: sh
+    :name: usage-sh-template
+
+    hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+This will use the ``template.puml`` file as template.  Templates follow the
+```jinja`` <http://jinja.pocoo.org/>`_ syntax.  For instance, to add a preamble to the PlantUML output, the
+template file may contain:
+
+::
+    :name: usage-template
+
+    {% extends 'default.puml' %}
+
+    {% block preamble %}
+    title "This is a title"
+    skinparam backgroundColor #EEEBDC
+    skinparam handwritten true
+    {% endblock %}
+
+This will inherit from the default template and override the preamble only.
 
 Module
 ~~~~~~

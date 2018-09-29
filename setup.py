@@ -18,7 +18,7 @@ except ImportError:
 NAME = "hpp2plantuml"
 PACKAGES = find_packages(where="src")
 META_PATH = os.path.join("src", NAME, "__init__.py")
-KEYWORDS = ["class", "attribute", "boilerplate"]
+KEYWORDS = ["class"]
 CLASSIFIERS = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -33,7 +33,7 @@ CLASSIFIERS = [
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-INSTALL_REQUIRES = ['argparse', 'CppHeaderParser']
+INSTALL_REQUIRES = ['argparse', 'CppHeaderParser', 'jinja2']
 INSTALL_REQUIRES += ['sphinx', ]
 SETUP_REQUIRES = ['sphinx', 'numpydoc']
 ###################################################################
@@ -83,7 +83,6 @@ class Sphinx(Command):
         src_dir = (self.distribution.package_dir or {'': ''})['']
         src_dir = os.path.join(os.getcwd(),  src_dir)
         sys.path.append('src')
-        print('pwd=', os.getcwd(), ' src-dir=', src_dir)
         # Run sphinx by calling the main method, '--full' also adds a
         # conf.py
         sphinx.apidoc.main(
@@ -112,6 +111,8 @@ if __name__ == "__main__":
         long_description=read("README.rst"),
         packages=PACKAGES,
         package_dir={"": "src"},
+        package_data={PACKAGES[0]: ['templates/*.puml']},
+        include_package_data=True,
         zip_safe=False,
         classifiers=CLASSIFIERS,
         install_requires=INSTALL_REQUIRES,

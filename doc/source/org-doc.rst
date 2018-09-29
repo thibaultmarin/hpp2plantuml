@@ -13,7 +13,8 @@ The current version of the code is:
 ::
     :name: hpp2plantuml-version
 
-    0.4
+    0.5
+
 
 The source code can be found on GitHub:
 `https://github.com/thibaultmarin/hpp2plantuml <https://github.com/thibaultmarin/hpp2plantuml>`_.
@@ -89,6 +90,8 @@ This module has mostly standard dependencies; the only exception is the
     +-----------------+
     | CppHeaderParser |
     +-----------------+
+    | jinja2          |
+    +-----------------+
 
 The full list of non-standard dependencies is produced by the following source
 block (returning either imports or a dependency list used in `sec-package-setup-py`_):
@@ -111,10 +114,12 @@ block (returning either imports or a dependency list used in `sec-package-setup-
 
     # %% Imports
 
+    import os
     import re
     import glob
     import argparse
     import CppHeaderParser
+    import jinja2
 
 The tests rely on the `nosetest <http://nose.readthedocs.io/en/latest/>`_ framework and the package documentation is built
 with `Sphinx <http://sphinx-doc.org>`_.
@@ -1143,19 +1148,28 @@ be used to avoid this sorting step.
         Each method has versions for file and string inputs and folder string lists
         and file lists inputs.
         """
-        def __init__(self):
+        def __init__(self, template_file=None):
             """Constructor
 
             The `Diagram` class constructor simply initializes object lists.  It
             does not create objects or relationships.
             """
-            self._objects = []
-            self._inheritance_list = []
-            self._aggregation_list = []
+            self.clear()
+            if template_file is not None:
+                self._template_file = os.path.basename(template_file)
+            else:
+                self._template_file = 'default.puml'
+            self._env = jinja2.Environment(loader=jinja2.ChoiceLoader([
+                jinja2.FileSystemLoader(
+                    os.path.abspath(os.path.dirname(template_file))),
+                jinja2.PackageLoader('hpp2plantuml', 'templates')]),
+                                           keep_trailing_newline=True)
 
         def clear(self):
             """Reinitiliaze object"""
-            self.__init__()
+            self._objects = []
+            self._inheritance_list = []
+            self._aggregation_list = []
 
         def _sort_list(input_list):
             """Sort list using `ClassRelationship` comparison
@@ -1461,45 +1475,10 @@ be used to avoid this sorting step.
                 String containing the full string representation of the `Diagram`
                 object, including objects and object relationships
             """
-            # Preamble
-            diagram_str = self._preamble()
-
-            # Objects
-            for obj in self._objects:
-                diagram_str += obj.render() + '\n'
-
-            # Inheritance
-            for inherit in self._inheritance_list:
-                diagram_str += inherit.render() + '\n'
-
-            # Aggregation
-            for comp in self._aggregation_list:
-                diagram_str += comp.render() + '\n'
-
-            # Postamble
-            diagram_str += self._postamble()
-
-            return diagram_str
-
-        def _preamble(self):
-            """PlantUML preamble text
-
-            Returns
-            -------
-            str
-                The PlantUML preamble text: ``@startuml``
-            """
-            return '@startuml\n'
-
-        def _postamble(self):
-            """PlantUML postamble text
-
-            Returns
-            -------
-            str
-                The PlantUML postamble text: ``@enduml``
-            """
-            return '\n@enduml\n'
+            template = self._env.get_template(self._template_file)
+            return template.render(objects=self._objects,
+                                   inheritance_list=self._inheritance_list,
+                                   aggregation_list=self._aggregation_list)
 
 Helper functions
 ~~~~~~~~~~~~~~~~
@@ -1649,8 +1628,8 @@ output file.
     # %% Main function
 
 
-    def CreatePlantUMLFile(file_list, output_file=None):
-        """ Create PlantUML file from list of header files
+    def CreatePlantUMLFile(file_list, output_file=None, template_file=None):
+        """Create PlantUML file from list of header files
 
         This function parses a list of C++ header files and generates a file for
         use with PlantUML.
@@ -1662,12 +1641,14 @@ output file.
             :func:`expand_file_list` function)
         output_file : str
             Name of the output file
+        template_file : str
+            When not None, the name of the jinja2 template file used for rendering
         """
         if isinstance(file_list, str):
             file_list_c = [file_list, ]
         else:
             file_list_c = file_list
-        diag = Diagram()
+        diag = Diagram(template_file=template_file)
         diag.create_from_file_list(list(set(expand_file_list(file_list_c))))
         diag_render = diag.render()
 
@@ -1676,6 +1657,59 @@ output file.
         else:
             with open(output_file, 'wt') as fid:
                 fid.write(diag_render)
+
+Default template
+~~~~~~~~~~~~~~~~
+
+The rendering of the PlantUML file is managed by a ```jinja`` <http://jinja.pocoo.org/>`_ template.  The
+default template is as follows:
+
+::
+
+    :name: jinja2-tpl
+
+    @startuml
+
+    {% block preamble %}
+    {% endblock %}
+
+    {% block objects %}
+    /' Objects '/
+    {% for object in objects %}
+    {{ object.render() }}
+    {% endfor %}
+    {% endblock %}
+
+    {% block inheritance %}
+    /' Inheritance relationships '/
+    {% for link in inheritance_list %}
+    {{ link.render() }}
+    {% endfor %}
+    {% endblock %}
+
+    {% block aggregation %}
+    /' Aggregation relationships '/
+    {% for link in aggregation_list %}
+    {{ link.render() }}
+    {% endfor %}
+    {% endblock %}
+
+    @enduml
+
+The template successively prints the following blocks
+
+``preamble``
+    Empty by default, can be used to insert a title and PlantUML
+    ``skinparam`` options
+
+``objects``
+    Classes, structs and enum objects
+
+``inheritance``
+    Inheritance links
+
+``aggregation``
+    Aggregation links
 
 .. _sec-module-cmd:
 
@@ -1708,11 +1742,15 @@ to parse input arguments.  The function passes the command line arguments to the
         parser.add_argument('-o', '--output-file', dest='output_file',
                             required=False, default=None, metavar='FILE',
                             help='output file')
+        parser.add_argument('-t', '--template-file', dest='template_file',
+                            required=False, default=None, metavar='JINJA2-FILE',
+                            help='path to jinja2 template file')
         parser.add_argument('--version', action='version',
-                            version='%(prog)s ' + '0.4')
+                            version='%(prog)s ' + '0.5')
         args = parser.parse_args()
         if len(args.input_files) > 0:
-            CreatePlantUMLFile(args.input_files, args.output_file)
+            CreatePlantUMLFile(args.input_files, args.output_file,
+                               template_file=args.template_file)
 
     # %% Standalone mode
 
@@ -1771,7 +1809,7 @@ The command line usage is (``hpp2plantuml --help``):
 
 ::
 
-    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
+    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
 
     hpp2plantuml tool.
 
@@ -1781,6 +1819,8 @@ The command line usage is (``hpp2plantuml --help``):
                             input file (must be quoted when using wildcards)
       -o FILE, --output-file FILE
                             output file
+      -t JINJA2-FILE, --template-file JINJA2-FILE
+                            path to jinja2 template file
       --version             show program's version number and exit
 
 
@@ -1796,6 +1836,31 @@ For instance, the following command will generate an input file for PlantUML
     :name: usage-sh
 
     hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
+
+To customize the output PlantUML file, templates can be used (using the ``-t``
+parameter):
+
+.. code:: sh
+    :name: usage-sh-template
+
+    hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+This will use the ``template.puml`` file as template.  Templates follow the
+```jinja`` <http://jinja.pocoo.org/>`_ syntax.  For instance, to add a preamble to the PlantUML output, the
+template file may contain:
+
+::
+    :name: usage-template
+
+    {% extends 'default.puml' %}
+
+    {% block preamble %}
+    title "This is a title"
+    skinparam backgroundColor #EEEBDC
+    skinparam handwritten true
+    {% endblock %}
+
+This will inherit from the default template and override the preamble only.
 
 Module
 ~~~~~~
@@ -2220,6 +2285,10 @@ The comparison takes into account the white space, indentation, etc.
     :name: puml-simple-classes
 
     @startuml
+
+
+    /' Objects '/
+
     abstract class Class01 {
     	+{abstract} AbstractPublicMethod(int param) : bool
     	+PublicMethod(int param) : bool {query}
@@ -2231,6 +2300,7 @@ The comparison takes into account the white space, indentation, etc.
     	+public_var : int
     }
 
+
     class Class02 {
     	+AbstractPublicMethod(int param) : bool
     	-_AbstractMethod(int param) : bool
@@ -2238,6 +2308,7 @@ The comparison takes into account the white space, indentation, etc.
     	-{static} _StaticPrivateMethod(bool param) : bool
     	-_private_var : int
     }
+
 
     class Class03 <template<typename T>> {
     	+Class03()
@@ -2248,6 +2319,7 @@ The comparison takes into account the white space, indentation, etc.
     	-_obj_list : list<Class02>
     }
 
+
     namespace Interface {
     	class Class04 {
     		+Class04()
@@ -2257,6 +2329,7 @@ The comparison takes into account the white space, indentation, etc.
     	}
     }
 
+
     namespace Interface {
     	class Class04_derived {
     		+Class04_derived()
@@ -2265,23 +2338,41 @@ The comparison takes into account the white space, indentation, etc.
     	}
     }
 
+
     enum Enum01 {
     	VALUE_0
     	VALUE_1
     	VALUE_2
     }
 
+
+
+
+
+    /' Inheritance relationships '/
+
     .Class01 <|-- .Class02
+
 
     namespace Interface {
     	Class04 <|-- Class04_derived
     }
 
+
+
+
+
+    /' Aggregation relationships '/
+
     .Class03 "2" o-- .Class01
+
 
     .Class03 o-- .Class02
 
+
     Interface.Class04 o-- .Class01
+
+
 
 
     @enduml
@@ -2452,7 +2543,7 @@ obtained using the source block described `sec-org-el-version`_.
 .. code:: python
     :name: py-init
 
-    """ hpp2plantuml module
+    """hpp2plantuml module
 
     .. _sec-module:
 
@@ -2491,7 +2582,7 @@ obtained using the source block described `sec-org-el-version`_.
 
     ::
 
-        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
 
         hpp2plantuml tool.
 
@@ -2501,6 +2592,8 @@ obtained using the source block described `sec-org-el-version`_.
                                 input file (must be quoted when using wildcards)
           -o FILE, --output-file FILE
                                 output file
+          -t JINJA2-FILE, --template-file JINJA2-FILE
+                                path to jinja2 template file
           --version             show program's version number and exit
 
 
@@ -2517,6 +2610,31 @@ obtained using the source block described `sec-org-el-version`_.
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 
+    To customize the output PlantUML file, templates can be used (using the ``-t``
+    parameter):
+
+    .. code:: sh
+        :name: usage-sh-template
+
+        hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+    This will use the ``template.puml`` file as template.  Templates follow the
+    ```jinja`` <http://jinja.pocoo.org/>`_ syntax.  For instance, to add a preamble to the PlantUML output, the
+    template file may contain:
+
+    ::
+        :name: usage-template
+
+        {% extends 'default.puml' %}
+
+        {% block preamble %}
+        title "This is a title"
+        skinparam backgroundColor #EEEBDC
+        skinparam handwritten true
+        {% endblock %}
+
+    This will inherit from the default template and override the preamble only.
+
     Module
     ~~~~~~
 
@@ -2530,7 +2648,7 @@ obtained using the source block described `sec-org-el-version`_.
 
     __title__ = "hpp2plantuml"
     __description__ = "Convert C++ header files to PlantUML"
-    __version__ = '0.4'
+    __version__ = '0.5'
     __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
     __doc__ = __description__ + " <" + __uri__ + ">"
     __author__ = "Thibault Marin"
@@ -2612,7 +2730,7 @@ The non-boilerplate part of the ``setup.py`` file defines the package informatio
     NAME = "hpp2plantuml"
     PACKAGES = find_packages(where="src")
     META_PATH = os.path.join("src", NAME, "__init__.py")
-    KEYWORDS = ["class", "attribute", "boilerplate"]
+    KEYWORDS = ["class"]
     CLASSIFIERS = [
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
@@ -2627,7 +2745,7 @@ The non-boilerplate part of the ``setup.py`` file defines the package informatio
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ]
-    INSTALL_REQUIRES = ['argparse', 'CppHeaderParser']
+    INSTALL_REQUIRES = ['argparse', 'CppHeaderParser', 'jinja2']
     INSTALL_REQUIRES += ['sphinx', ]
     SETUP_REQUIRES = ['sphinx', 'numpydoc']
     ###################################################################
@@ -2687,7 +2805,6 @@ The following helper functions provide tools to extract metadata from the
             src_dir = (self.distribution.package_dir or {'': ''})['']
             src_dir = os.path.join(os.getcwd(),  src_dir)
             sys.path.append('src')
-            print('pwd=', os.getcwd(), ' src-dir=', src_dir)
             # Run sphinx by calling the main method, '--full' also adds a
             # conf.py
             sphinx.apidoc.main(
@@ -2733,6 +2850,8 @@ This final block passes all the relevant package information to ``setuptools``:
             long_description=read("README.rst"),
             packages=PACKAGES,
             package_dir={"": "src"},
+            package_data={PACKAGES[0]: ['templates/*.puml']},
+            include_package_data=True,
             zip_safe=False,
             classifiers=CLASSIFIERS,
             install_requires=INSTALL_REQUIRES,
@@ -2817,7 +2936,7 @@ org-file (converted to RST format).
 
     ::
 
-        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
 
         hpp2plantuml tool.
 
@@ -2827,6 +2946,8 @@ org-file (converted to RST format).
                                 input file (must be quoted when using wildcards)
           -o FILE, --output-file FILE
                                 output file
+          -t JINJA2-FILE, --template-file JINJA2-FILE
+                                path to jinja2 template file
           --version             show program's version number and exit
 
 
@@ -2842,6 +2963,31 @@ org-file (converted to RST format).
         :name: usage-sh
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
+
+    To customize the output PlantUML file, templates can be used (using the ``-t``
+    parameter):
+
+    .. code:: sh
+        :name: usage-sh-template
+
+        hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+    This will use the ``template.puml`` file as template.  Templates follow the
+    ```jinja`` <http://jinja.pocoo.org/>`_ syntax.  For instance, to add a preamble to the PlantUML output, the
+    template file may contain:
+
+    ::
+        :name: usage-template
+
+        {% extends 'default.puml' %}
+
+        {% block preamble %}
+        title "This is a title"
+        skinparam backgroundColor #EEEBDC
+        skinparam handwritten true
+        {% endblock %}
+
+    This will inherit from the default template and override the preamble only.
 
     Module
     ~~~~~~
@@ -3011,9 +3157,9 @@ content of the file is mostly following the defaults, with a few exceptions:
     # built documents.
     #
     # The short X.Y version.
-    version = u'v' + u'0.4'
+    version = u'v' + u'0.5'
     # The full version, including alpha/beta/rc tags.
-    release = u'v' + u'0.4'
+    release = u'v' + u'0.5'
 
     # The language for content autogenerated by Sphinx. Refer to documentation
     # for a list of supported languages.
@@ -3087,7 +3233,7 @@ content of the file is mostly following the defaults, with a few exceptions:
     # The name for this set of Sphinx documents.
     # "<project> v<release> documentation" by default.
     #
-    # html_title = u'hpp2plantuml ' + u'v' + u'0.4'
+    # html_title = u'hpp2plantuml ' + u'v' + u'0.5'
 
     # A shorter title for the navigation bar.  Default is the same as html_title.
     #
@@ -3356,7 +3502,7 @@ to the automatically generated and the org-file documents.
 
     ::
 
-        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [--version]
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA2-FILE] [--version]
 
         hpp2plantuml tool.
 
@@ -3366,6 +3512,8 @@ to the automatically generated and the org-file documents.
                                 input file (must be quoted when using wildcards)
           -o FILE, --output-file FILE
                                 output file
+          -t JINJA2-FILE, --template-file JINJA2-FILE
+                                path to jinja2 template file
           --version             show program's version number and exit
 
 
@@ -3381,6 +3529,31 @@ to the automatically generated and the org-file documents.
         :name: usage-sh
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
+
+    To customize the output PlantUML file, templates can be used (using the ``-t``
+    parameter):
+
+    .. code:: sh
+        :name: usage-sh-template
+
+        hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+    This will use the ``template.puml`` file as template.  Templates follow the
+    ```jinja`` <http://jinja.pocoo.org/>`_ syntax.  For instance, to add a preamble to the PlantUML output, the
+    template file may contain:
+
+    ::
+        :name: usage-template
+
+        {% extends 'default.puml' %}
+
+        {% block preamble %}
+        title "This is a title"
+        skinparam backgroundColor #EEEBDC
+        skinparam handwritten true
+        {% endblock %}
+
+    This will inherit from the default template and override the preamble only.
 
     Module
     ~~~~~~
