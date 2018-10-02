@@ -1,0 +1,7 @@
+{% extends 'default.puml' %}
+
+{% block preamble %}
+title "This is a title"
+skinparam backgroundColor #EEEBDC
+skinparam handwritten true
+{% endblock %}
