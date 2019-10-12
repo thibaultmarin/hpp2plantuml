@@ -23,6 +23,8 @@ hierarchies.  It aims at supporting:
 
 - aggregation relationships (very basic support).
 
+- dependency relationships
+
 The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
 files.
 
