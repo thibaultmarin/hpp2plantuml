@@ -21,7 +21,8 @@ MEMBER_PROP_MAP = {
 LINK_TYPE_MAP = {
     'inherit': '<|--',
     'aggregation': 'o--',
-    'composition': '*--'
+    'composition': '*--',
+    'dependency': '<..'
 }
 
 # Assiocation between object names and objects
@@ -424,6 +425,7 @@ class ClassMethod(ClassMember):
         member_scope : str
             Scope of the member method
 
+
         """
         assert(isinstance(class_method,
                           CppHeaderParser.CppHeaderParser.CppMethod))
@@ -648,6 +650,7 @@ class ClassRelationship(object):
         # Link string
         link_str += parent_str + ' ' + self._render_link_type() + \
                     ' ' + child_str + '\n'
+        # print(link_str)
 
         if namespace_wrap is not None:
             return wrap_namespace(link_str, namespace_wrap)
@@ -664,6 +667,7 @@ class ClassRelationship(object):
         str
             The link between parent and child following the PlantUML syntax
         """
+        # print(self._link_type)
         return LINK_TYPE_MAP[self._link_type]
 
 # %% Class inheritance
@@ -732,6 +736,22 @@ class ClassAggregationRelationship(ClassRelationship):
         count_str = '' if self._count == 1 else '"%d" ' % self._count
         return count_str + LINK_TYPE_MAP[self._link_type]
 
+class ClassDependencyRelationship(ClassRelationship):
+    def __init__(self, c_parent, c_child, **kwargs):
+        """Constructor
+        Parameters
+        ----------
+        c_parent : str
+            Class corresponding to the type of the member variable in the
+            dependency relationship
+        c_child : str
+            Child (or client) class of the dependency relationship
+        kwargs : dict
+            Additional parameters passed to parent class
+        """
+        super().__init__('dependency', c_parent, c_child, **kwargs)
+    
+
 # %% Diagram class
 
 
@@ -772,6 +792,7 @@ class Diagram(object):
         self._objects = []
         self._inheritance_list = []
         self._aggregation_list = []
+        self._dependency_list = []
 
     def _sort_list(input_list):
         """Sort list using `ClassRelationship` comparison
@@ -796,6 +817,7 @@ class Diagram(object):
             obj.sort_members()
         Diagram._sort_list(self._inheritance_list)
         Diagram._sort_list(self._aggregation_list)
+        Diagram._sort_list(self._dependency_list)
 
     def _build_helper(self, input, build_from='string', flag_build_lists=True,
                       flag_reset=False):
@@ -920,6 +942,7 @@ class Diagram(object):
         """
         self.build_inheritance_list()
         self.build_aggregation_list()
+        self.build_dependency_list()
 
     def parse_objects(self, header_file, arg_type='string'):
         """Parse objects
@@ -988,6 +1011,51 @@ class Diagram(object):
                             ClassInheritanceRelationship(
                                 parent_obj, obj,
                                 flag_use_namespace=flag_use_namespace))
+                            
+    def build_dependency_list(self):
+        """Build list of dependency between objects
+
+        This method lists all the dependency relationships between objects
+        contained in the `Diagram` object (external relationships are ignored).
+
+        The implementation establishes a list of available classes and loops
+        over objects to obtain their inheritance.  When parent classes are in
+        the list of available classes, their a `ClassInheritanceRelationship`
+        object is added to the list.
+        """
+
+        self._dependency_list = []
+        # Build list of classes in diagram
+        class_list_obj = self._make_class_list()
+        class_list = [c['name'] for c in class_list_obj]
+        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+
+        # Create relationships
+        
+        # Add all objects name to list
+        objects_name = []
+        for obj in self._objects:
+            objects_name.append(obj.get_name())
+
+        # Dependency
+        for obj in self._objects:
+            if isinstance(obj, Class):
+                for member in obj._member_list:
+                    # Check if the member is a method
+                    if isinstance(member, ClassMethod):
+                        for method in member._param_list:
+                            index = ValueError
+                            try:
+                                # Check if the method param type is a Class type
+                                index = objects_name.index(method[0])
+                            except:
+                                pass
+
+                            if index != ValueError and method[0] != obj.get_name():
+                                depend_obj = self._objects[index]
+
+                                self._dependency_list.append(ClassDependencyRelationship(depend_obj, obj, flag_use_namespace=flag_use_namespace))
+            print()
 
     def build_aggregation_list(self):
         """Build list of aggregation relationships
@@ -1033,12 +1101,12 @@ class Diagram(object):
                 comp_parent_obj = class_list_obj[comp_parent_idx]['obj']
                 self._aggregation_list.append(
                     ClassAggregationRelationship(
-                        obj_class_obj, comp_parent_obj, comp_count,
+                        comp_parent_obj, obj_class_obj, comp_count,
                         flag_use_namespace=flag_use_namespace))
 
     def _augment_comp(self, c_dict, c_parent, c_child):
         """Increment the aggregation reference count
-
+aggregation
         If the aggregation relationship is not in the list (``c_dict``), then
         add a new entry with count 1.  If the relationship is already in the
         list, then increment the count.
@@ -1077,10 +1145,12 @@ class Diagram(object):
             String containing the full string representation of the `Diagram`
             object, including objects and object relationships
         """
-        template = self._env.get_template(self._template_file)
+        template = self._env.get_template(self._template_file)    
+
         return template.render(objects=self._objects,
                                inheritance_list=self._inheritance_list,
-                               aggregation_list=self._aggregation_list)
+                               aggregation_list=self._aggregation_list,
+                               dependency_list=self._dependency_list)
 
 # %% Cleanup object type string
 

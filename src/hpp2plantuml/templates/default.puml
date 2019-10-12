@@ -24,4 +24,11 @@
 {% endfor %}
 {% endblock %}
 
+{% block dependence %}
+/' Dependency relationships '/
+{% for link in dependency_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+
 @enduml
