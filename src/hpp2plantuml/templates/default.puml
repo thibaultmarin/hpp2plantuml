@@ -23,5 +23,14 @@
 {{ link.render() }}
 {% endfor %}
 {% endblock %}
+{% if flag_dep %}
+{% block dependency %}
+
+/' Dependency relationships '/
+{% for link in dependency_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+{% endif %}
 
 @enduml

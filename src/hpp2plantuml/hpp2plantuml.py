@@ -21,10 +21,11 @@ MEMBER_PROP_MAP = {
 LINK_TYPE_MAP = {
     'inherit': '<|--',
     'aggregation': 'o--',
-    'composition': '*--'
+    'composition': '*--',
+    'dependency': '<..'
 }
 
-# Assiocation between object names and objects
+# Association between object names and objects
 # - The first element is the object type name in the CppHeader object
 # - The second element is the iterator used to loop over objects
 # - The third element is a function returning the corresponding internal object
@@ -82,9 +83,9 @@ class Container(object):
         namespace = header_container.get('namespace', None)
         if namespace:
             self._namespace = re.sub(':+$', '', namespace)
-        self._do_parsed_members(header_container)
+        self._do_parse_members(header_container)
 
-    def _do_parsed_members(self, header_container):
+    def _do_parse_members(self, header_container):
         """Initialize object from header (abstract method)
 
         Extract object from CppHeaderParser dictionary representing a class, a
@@ -232,7 +233,7 @@ class Class(Container):
                                   for parent in header_class[1]['inherits']]
         self.parse_members(header_class[1])
 
-    def _do_parsed_members(self, header_class):
+    def _do_parse_members(self, header_class):
         """Initialize class object from header
 
         This method extracts class member variables and methods from header.
@@ -492,7 +493,7 @@ class Struct(Class):
 
 
 class Enum(Container):
-    """Class represnting enum objects
+    """Class representing enum objects
 
     This class defines a simple object inherited from the base `Container`
     class.  It simply lists enumerated values.
@@ -508,7 +509,7 @@ class Enum(Container):
         super().__init__('enum', header_enum.get('name', 'empty'))
         self.parse_members(header_enum)
 
-    def _do_parsed_members(self, header_enum):
+    def _do_parse_members(self, header_enum):
         """Extract enum values from header
 
         Parameters
@@ -703,23 +704,26 @@ class ClassAggregationRelationship(ClassRelationship):
     variable type (possibly within a container such as a list) in a class
     definition.
     """
-    def __init__(self, c_parent, c_child, c_count=1, **kwargs):
+    def __init__(self, c_object, c_container, c_count=1,
+                 rel_type='aggregation', **kwargs):
         """Constructor
 
         Parameters
         ----------
-        c_parent : str
+        c_object : str
             Class corresponding to the type of the member variable in the
             aggregation relationship
-        c_child : str
+        c_container : str
             Child (or client) class of the aggregation relationship
-        c_cout : int
-            The number of members of ``c_child`` that are of type (possibly
-            through containers) ``c_parent``
+        c_count : int
+            The number of members of ``c_container`` that are of type (possibly
+            through containers) ``c_object``
+        rel_type : str
+            Relationship type: ``aggregation`` or ``composition``
         kwargs : dict
             Additional parameters passed to parent class
         """
-        super().__init__('aggregation', c_parent, c_child, **kwargs)
+        super().__init__(rel_type, c_object, c_container, **kwargs)
         self._count = c_count
 
     def _render_link_type(self):
@@ -732,13 +736,37 @@ class ClassAggregationRelationship(ClassRelationship):
         count_str = '' if self._count == 1 else '"%d" ' % self._count
         return count_str + LINK_TYPE_MAP[self._link_type]
 
+# %% Class dependency
+
+
+class ClassDependencyRelationship(ClassRelationship):
+    """Dependency relationship
+
+    Dependencies occur when member methods depend on an object of another class
+    in the diagram.
+    """
+    def __init__(self, c_parent, c_child, **kwargs):
+        """Constructor
+
+        Parameters
+        ----------
+        c_parent : str
+            Class corresponding to the type of the member variable in the
+            dependency relationship
+        c_child : str
+            Child (or client) class of the dependency relationship
+        kwargs : dict
+            Additional parameters passed to parent class
+        """
+        super().__init__('dependency', c_parent, c_child, **kwargs)
+
 # %% Diagram class
 
 
 class Diagram(object):
     """UML diagram object
 
-    This class lists the objects in the set of files considere, and the
+    This class lists the objects in the set of files considered, and the
     relationships between object.
 
     The main interface to the `Diagram` object is via the ``create_*`` and
@@ -749,12 +777,13 @@ class Diagram(object):
     Each method has versions for file and string inputs and folder string lists
     and file lists inputs.
     """
-    def __init__(self, template_file=None):
+    def __init__(self, template_file=None, flag_dep=False):
         """Constructor
 
         The `Diagram` class constructor simply initializes object lists.  It
         does not create objects or relationships.
         """
+        self._flag_dep = flag_dep
         self.clear()
         loader_list = []
         if template_file is not None:
@@ -768,10 +797,11 @@ class Diagram(object):
             loader_list), keep_trailing_newline=True)
 
     def clear(self):
-        """Reinitiliaze object"""
+        """Reinitialize object"""
         self._objects = []
         self._inheritance_list = []
         self._aggregation_list = []
+        self._dependency_list = []
 
     def _sort_list(input_list):
         """Sort list using `ClassRelationship` comparison
@@ -796,6 +826,7 @@ class Diagram(object):
             obj.sort_members()
         Diagram._sort_list(self._inheritance_list)
         Diagram._sort_list(self._aggregation_list)
+        Diagram._sort_list(self._dependency_list)
 
     def _build_helper(self, input, build_from='string', flag_build_lists=True,
                       flag_reset=False):
@@ -920,6 +951,8 @@ class Diagram(object):
         """
         self.build_inheritance_list()
         self.build_aggregation_list()
+        if self._flag_dep:
+            self.build_dependency_list()
 
     def parse_objects(self, header_file, arg_type='string'):
         """Parse objects
@@ -965,8 +998,8 @@ class Diagram(object):
 
         The implementation establishes a list of available classes and loops
         over objects to obtain their inheritance.  When parent classes are in
-        the list of available classes, their a `ClassInheritanceRelationship`
-        object is added to the list.
+        the list of available classes, a `ClassInheritanceRelationship` object
+        is added to the list.
         """
         self._inheritance_list = []
         # Build list of classes in diagram
@@ -996,7 +1029,7 @@ class Diagram(object):
         corresponding to other classes defined in the `Diagram` object (keeping
         a count of occurrences).
 
-        The procedure first build an internal dictionary of relationships
+        The procedure first builds an internal dictionary of relationships
         found, augmenting the count using the :func:`_augment_comp` function.
         In a second phase, `ClassAggregationRelationship` objects are created
         for each relationships, using the calculated count.
@@ -1023,10 +1056,13 @@ class Diagram(object):
                 for var_type in var_types:
                     for parent in class_list:
                         if re.search(r'\b' + parent + r'\b', var_type):
+                            rel_type = 'composition'
+                            if '{}*'.format(parent) in var_type:
+                                rel_type = 'aggregation'
                             self._augment_comp(aggregation_counts, parent,
-                                               child_class)
+                                               child_class, rel_type=rel_type)
         for obj_class, obj_comp_list in aggregation_counts.items():
-            for comp_parent, comp_count in obj_comp_list:
+            for comp_parent, rel_type, comp_count in obj_comp_list:
                 obj_class_idx = class_list.index(obj_class)
                 obj_class_obj = class_list_obj[obj_class_idx]['obj']
                 comp_parent_idx = class_list.index(comp_parent)
@@ -1034,9 +1070,58 @@ class Diagram(object):
                 self._aggregation_list.append(
                     ClassAggregationRelationship(
                         obj_class_obj, comp_parent_obj, comp_count,
+                        rel_type=rel_type,
                         flag_use_namespace=flag_use_namespace))
 
-    def _augment_comp(self, c_dict, c_parent, c_child):
+    def build_dependency_list(self):
+        """Build list of dependency between objects
+
+        This method lists all the dependency relationships between objects
+        contained in the `Diagram` object (external relationships are ignored).
+
+        The implementation establishes a list of available classes and loops
+        over objects, list their methods adds a dependency relationship when a
+        method takes an object as input.
+        """
+
+        self._dependency_list = []
+        # Build list of classes in diagram
+        class_list_obj = self._make_class_list()
+        class_list = [c['name'] for c in class_list_obj]
+        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+
+        # Create relationships
+
+        # Add all objects name to list
+        objects_name = []
+        for obj in self._objects:
+            objects_name.append(obj.get_name())
+
+        # Dependency
+        for obj in self._objects:
+            if isinstance(obj, Class):
+                for member in obj._member_list:
+                    # Check if the member is a method
+                    if isinstance(member, ClassMethod):
+                        for method in member._param_list:
+                            index = ValueError
+                            try:
+                                # Check if the method param type is a Class
+                                # type
+                                index = [re.search(o, method[0]) is not None
+                                         for o in objects_name].index(True)
+                            except ValueError:
+                                pass
+                            if index != ValueError and \
+                               method[0] != obj.get_name():
+                                depend_obj = self._objects[index]
+
+                                self._dependency_list.append(
+                                    ClassDependencyRelationship(
+                                        depend_obj, obj,
+                                        flag_use_namespace=flag_use_namespace))
+
+    def _augment_comp(self, c_dict, c_parent, c_child, rel_type='aggregation'):
         """Increment the aggregation reference count
 
         If the aggregation relationship is not in the list (``c_dict``), then
@@ -1052,16 +1137,18 @@ class Diagram(object):
             Parent class name
         c_child : str
             Child class name
+        rel_type : str
+            Relationship type: ``aggregation`` or ``composition``
         """
         if c_child not in c_dict:
-            c_dict[c_child] = [[c_parent, 1], ]
+            c_dict[c_child] = [[c_parent, rel_type, 1], ]
         else:
-            parent_list = [c[0] for c in c_dict[c_child]]
-            if c_parent not in parent_list:
-                c_dict[c_child].append([c_parent, 1])
+            parent_list = [c[:2] for c in c_dict[c_child]]
+            if [c_parent, rel_type] not in parent_list:
+                c_dict[c_child].append([c_parent, rel_type, 1])
             else:
-                c_idx = parent_list.index(c_parent)
-                c_dict[c_child][c_idx][1] += 1
+                c_idx = parent_list.index([c_parent, rel_type])
+                c_dict[c_child][c_idx][2] += 1
 
     def render(self):
         """Render full UML diagram
@@ -1080,7 +1167,9 @@ class Diagram(object):
         template = self._env.get_template(self._template_file)
         return template.render(objects=self._objects,
                                inheritance_list=self._inheritance_list,
-                               aggregation_list=self._aggregation_list)
+                               aggregation_list=self._aggregation_list,
+                               dependency_list=self._dependency_list,
+                               flag_dep=self._flag_dep)
 
 # %% Cleanup object type string
 
@@ -1173,7 +1262,7 @@ def wrap_namespace(input_str, namespace):
 # %% Main function
 
 
-def CreatePlantUMLFile(file_list, output_file=None, template_file=None):
+def CreatePlantUMLFile(file_list, output_file=None, **diagram_kwargs):
     """Create PlantUML file from list of header files
 
     This function parses a list of C++ header files and generates a file for
@@ -1186,14 +1275,14 @@ def CreatePlantUMLFile(file_list, output_file=None, template_file=None):
         :func:`expand_file_list` function)
     output_file : str
         Name of the output file
-    template_file : str
-        When not None, the name of the jinja2 template file used for rendering
+    diagram_kwargs : dict
+        Additional parameters passed to :class:`Diagram` constructor
     """
     if isinstance(file_list, str):
         file_list_c = [file_list, ]
     else:
         file_list_c = file_list
-    diag = Diagram(template_file=template_file)
+    diag = Diagram(**diagram_kwargs)
     diag.create_from_file_list(list(set(expand_file_list(file_list_c))))
     diag_render = diag.render()
 
@@ -1222,15 +1311,20 @@ def main():
     parser.add_argument('-o', '--output-file', dest='output_file',
                         required=False, default=None, metavar='FILE',
                         help='output file')
+    parser.add_argument('-d', '--enable-dependency', dest='flag_dep',
+                        required=False, default=False, action='store_true',
+                        help='Extract dependency relationships from method ' +
+                        'arguments')
     parser.add_argument('-t', '--template-file', dest='template_file',
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.5')
+                        version='%(prog)s ' + '0.6')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
-                           template_file=args.template_file)
+                           template_file=args.template_file,
+                           flag_dep=args.flag_dep)
 
 # %% Standalone mode
 

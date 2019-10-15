@@ -193,9 +193,13 @@ class B : A{};""", """A <@-- B
 """], ["""class A{};
 class B : public A{};""", """A <@-- B
 """], ["""class B{};
-class A{B obj;};""", """A o-- B
+class A{B obj;};""", """A *-- B
 """], ["""class B{};
-class A{B obj; B* ptr;};""", """A \"2\" o-- B
+class A{B* obj;};""", """A o-- B
+"""], ["""class B{};
+class A{B * obj_ptr; B* ptr;};""", """A \"2\" o-- B
+"""], ["""class A{};
+class B{void Method(A* obj);};""", """A <.. B
 """], ["namespace T {class A{}; class B: A{};};", """namespace T {
 	A <@-- B
 }
@@ -207,13 +211,15 @@ class TestLink:
     def test_list_entries(self):
         for test_idx, (input_str, output_ref_str) in \
             enumerate(fix_test_list_def(test_list_link)):
-            obj_d = hpp2plantuml.Diagram()
+            obj_d = hpp2plantuml.Diagram(flag_dep=True)
             # Not very unittest-y
             obj_d.create_from_string(input_str)
             if len(obj_d._inheritance_list) > 0:
                 obj_l = obj_d._inheritance_list[0]
             elif len(obj_d._aggregation_list) > 0:
                 obj_l = obj_d._aggregation_list[0]
+            elif len(obj_d._dependency_list) > 0:
+                obj_l = obj_d._dependency_list[0]
             nt.assert_equal(output_ref_str, obj_l.render(),
                             'Test {0} failed [input: {1}]'.format(test_idx,
                                                                   input_str))
@@ -229,17 +235,29 @@ class TestFullDiagram():
         self._diag_saved_ref = ''
         with open(os.path.join(test_fold, 'simple_classes.puml'), 'rt') as fid:
             self._diag_saved_ref = fid.read()
+        self._diag_saved_ref_nodep = ''
+        with open(os.path.join(test_fold,
+                               'simple_classes_nodep.puml'), 'rt') as fid:
+            self._diag_saved_ref_nodep = fid.read()
 
     def test_full_files(self):
+        self._test_full_files_helper(False)
+        self._test_full_files_helper(True)
+
+    def _test_full_files_helper(self, flag_dep=False):
         # Create first version
         file_list_ref = list(set(hpp2plantuml.hpp2plantuml.expand_file_list(
             [os.path.join(test_fold, f) for f in self._input_files])))
-        diag_ref = hpp2plantuml.Diagram()
+        diag_ref = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_ref.create_from_file_list(file_list_ref)
         diag_render_ref = diag_ref.render()
 
         # Compare to saved reference
-        nt.assert_equal(self._diag_saved_ref, diag_render_ref)
+        if flag_dep:
+            saved_ref = self._diag_saved_ref
+        else:
+            saved_ref = self._diag_saved_ref_nodep
+        nt.assert_equal(saved_ref, diag_render_ref)
 
         # # Validate equivalent inputs
 
@@ -249,19 +267,19 @@ class TestFullDiagram():
                 [os.path.join(test_fold, f) for f in file_list])))
 
             # Create from file list
-            diag_c = hpp2plantuml.Diagram()
+            diag_c = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c.create_from_file_list(file_list_c)
             nt.assert_equal(diag_render_ref, diag_c.render())
 
             # Add from file list
-            diag_c_add = hpp2plantuml.Diagram()
+            diag_c_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c_add.add_from_file_list(file_list_c)
             diag_c_add.build_relationship_lists()
             diag_c_add.sort_elements()
             nt.assert_equal(diag_render_ref, diag_c_add.render())
 
             # Create from first file, add from rest of the list
-            diag_c_file = hpp2plantuml.Diagram()
+            diag_c_file = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c_file.create_from_file(file_list_c[0])
             for file_c in file_list_c[1:]:
                 diag_c_file.add_from_file(file_c)
@@ -276,19 +294,19 @@ class TestFullDiagram():
                 input_str_list.append(fid.read())
 
         # Create from string list
-        diag_str_list = hpp2plantuml.Diagram()
+        diag_str_list = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str_list.create_from_string_list(input_str_list)
         nt.assert_equal(diag_render_ref, diag_str_list.render())
 
         # Add from string list
-        diag_str_list_add = hpp2plantuml.Diagram()
+        diag_str_list_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str_list_add.add_from_string_list(input_str_list)
         diag_str_list_add.build_relationship_lists()
         diag_str_list_add.sort_elements()
         nt.assert_equal(diag_render_ref, diag_str_list_add.render())
 
         # Create from string
-        diag_str = hpp2plantuml.Diagram()
+        diag_str = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str.create_from_string('\n'.join(input_str_list))
         nt.assert_equal(diag_render_ref, diag_str.render())
         # Reset and parse
@@ -297,7 +315,7 @@ class TestFullDiagram():
         nt.assert_equal(diag_render_ref, diag_str.render())
 
         # Manually build object
-        diag_manual_add = hpp2plantuml.Diagram()
+        diag_manual_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
         for idx, (file_c, string_c) in enumerate(zip(file_list_ref,
                                                      input_str_list)):
             if idx == 0:
@@ -309,6 +327,10 @@ class TestFullDiagram():
         nt.assert_equal(diag_render_ref, diag_manual_add.render())
 
     def test_main_function(self):
+        #self._test_main_function_helper(False)
+        self._test_main_function_helper(True)
+
+    def _test_main_function_helper(self, flag_dep=False):
 
         # List files
         file_list = [os.path.join(test_fold, f) for f in self._input_files]
@@ -316,29 +338,33 @@ class TestFullDiagram():
         # Output to string
         with io.StringIO() as io_stream:
             sys.stdout = io_stream
-            hpp2plantuml.CreatePlantUMLFile(file_list)
+            hpp2plantuml.CreatePlantUMLFile(file_list, flag_dep=flag_dep)
             io_stream.seek(0)
             # Read string output, exclude final line return
             output_str = io_stream.read()[:-1]
         sys.stdout = sys.__stdout__
-        nt.assert_equal(self._diag_saved_ref, output_str)
+        if flag_dep:
+            saved_ref = self._diag_saved_ref
+        else:
+            saved_ref = self._diag_saved_ref_nodep
+        nt.assert_equal(saved_ref, output_str)
 
         # Output to file
         output_fname = 'output.puml'
         for template in [None, os.path.join(test_fold,
                                             'custom_template.puml')]:
             hpp2plantuml.CreatePlantUMLFile(file_list, output_fname,
-                                            template_file=template)
+                                            template_file=template,
+                                            flag_dep=flag_dep)
             output_fcontent = ''
             with open(output_fname, 'rt') as fid:
                 output_fcontent = fid.read()
             if template is None:
                 # Default template check
-                nt.assert_equal(self._diag_saved_ref, output_fcontent)
+                nt.assert_equal(saved_ref, output_fcontent)
             else:
                 # Check that all lines of reference are in the output
-                ref_re = re.search('(@startuml)\s*(.*)', self._diag_saved_ref,
-                                   re.DOTALL)
+                ref_re = re.search('(@startuml)\s*(.*)', saved_ref, re.DOTALL)
                 assert ref_re
                 # Build regular expression: allow arbitrary text between
                 # @startuml and the rest of the string
