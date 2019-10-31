@@ -7,7 +7,8 @@ import codecs
 from setuptools import setup, find_packages, Command
 try:
     import sphinx
-    import sphinx.apidoc
+    import sphinx.ext.apidoc
+    import sphinx.cmd.build
 except ImportError:
     pass
 
@@ -85,16 +86,16 @@ class Sphinx(Command):
         sys.path.append('src')
         # Run sphinx by calling the main method, '--full' also adds a
         # conf.py
-        sphinx.apidoc.main(
-            ['', '--private', '-H', metadata.name,
+        sphinx.ext.apidoc.main(
+            ['--private', '-H', metadata.name,
              '-A', metadata.author,
              '-V', metadata.version,
              '-R', metadata.version,
              '-o', os.path.join('doc', 'source'), src_dir]
         )
         # build the doc sources
-        sphinx.main(['', os.path.join('doc', 'source'),
-                     os.path.join('doc', 'build', 'html')])
+        sphinx.cmd.build.main([os.path.join('doc', 'source'),
+                               os.path.join('doc', 'build', 'html')])
 
 if __name__ == "__main__":
     setup(

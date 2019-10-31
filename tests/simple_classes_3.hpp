@@ -3,6 +3,7 @@ class Class03 {
 public:
 	Class03();
 	~Class03();
+	void Method(Interface::Class04& c4);
 private:
 	Class01* _obj;
 	Class01* _data;

@@ -15,7 +15,7 @@ this single org-file.
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
-: 0.5
+: 0.6
 
 The source code can be found on GitHub:
 https://github.com/thibaultmarin/hpp2plantuml.
@@ -38,6 +38,7 @@ hierarchies.  It aims at supporting:
   basic qualifiers (~static~, abstract),
 - inheritance relationships,
 - aggregation relationships (very basic support).
+- dependency relationships
 
 The package relies on the [[http://senexcanis.com/open-source/cppheaderparser/][CppHeaderParser]] package for parsing of C++ header
 files.
@@ -167,10 +168,11 @@ MEMBER_PROP_MAP = {
 LINK_TYPE_MAP = {
     'inherit': '<|--',
     'aggregation': 'o--',
-    'composition': '*--'
+    'composition': '*--',
+    'dependency': '<..'
 }
 
-# Assiocation between object names and objects
+# Association between object names and objects
 # - The first element is the object type name in the CppHeader object
 # - The second element is the iterator used to loop over objects
 # - The third element is a function returning the corresponding internal object
@@ -260,9 +262,9 @@ class Container(object):
         namespace = header_container.get('namespace', None)
         if namespace:
             self._namespace = re.sub(':+$', '', namespace)
-        self._do_parsed_members(header_container)
+        self._do_parse_members(header_container)
 
-    def _do_parsed_members(self, header_container):
+    def _do_parse_members(self, header_container):
         """Initialize object from header (abstract method)
 
         Extract object from CppHeaderParser dictionary representing a class, a
@@ -429,7 +431,7 @@ class Class(Container):
                                   for parent in header_class[1]['inherits']]
         self.parse_members(header_class[1])
 
-    def _do_parsed_members(self, header_class):
+    def _do_parse_members(self, header_class):
         """Initialize class object from header
 
         This method extracts class member variables and methods from header.
@@ -759,7 +761,7 @@ the actual values.
 
 
 class Enum(Container):
-    """Class represnting enum objects
+    """Class representing enum objects
 
     This class defines a simple object inherited from the base `Container`
     class.  It simply lists enumerated values.
@@ -775,7 +777,7 @@ class Enum(Container):
         super().__init__('enum', header_enum.get('name', 'empty'))
         self.parse_members(header_enum)
 
-    def _do_parsed_members(self, header_enum):
+    def _do_parse_members(self, header_enum):
         """Extract enum values from header
 
         Parameters
@@ -988,12 +990,15 @@ class ClassInheritanceRelationship(ClassRelationship):
 #+END_SRC
 
 
-**** DONE Aggregation
+**** DONE Aggregation / Composition
 
 The aggregation relationship specializes the base ~ClassRelationship~ class by
-using the "aggregation" link type and adding a ~count~ field used to add a label
-with the number of instances of the parent class in the PlantUML diagram (the
-count is omitted when equal to one).
+using the "aggregation" or "composition" link type and adding a ~count~ field
+used to add a label with the number of instances of the parent class in the
+PlantUML diagram (the count is omitted when equal to one).  The difference
+between aggregation and composition is mainly in the ownership of the member
+variable.  A raw pointer is interpreted as an aggregation relationship while any
+other container is interpreted as a composition relationship.
 
 #+NAME: py-class_aggregation
 #+BEGIN_SRC python
@@ -1011,23 +1016,26 @@ class ClassAggregationRelationship(ClassRelationship):
     variable type (possibly within a container such as a list) in a class
     definition.
     """
-    def __init__(self, c_parent, c_child, c_count=1, **kwargs):
+    def __init__(self, c_object, c_container, c_count=1,
+                 rel_type='aggregation', **kwargs):
         """Constructor
 
         Parameters
         ----------
-        c_parent : str
+        c_object : str
             Class corresponding to the type of the member variable in the
             aggregation relationship
-        c_child : str
+        c_container : str
             Child (or client) class of the aggregation relationship
-        c_cout : int
-            The number of members of ``c_child`` that are of type (possibly
-            through containers) ``c_parent``
+        c_count : int
+            The number of members of ``c_container`` that are of type (possibly
+            through containers) ``c_object``
+        rel_type : str
+            Relationship type: ``aggregation`` or ``composition``
         kwargs : dict
             Additional parameters passed to parent class
         """
-        super().__init__('aggregation', c_parent, c_child, **kwargs)
+        super().__init__(rel_type, c_object, c_container, **kwargs)
         self._count = c_count
 
     def _render_link_type(self):
@@ -1039,6 +1047,40 @@ class ClassAggregationRelationship(ClassRelationship):
         """
         count_str = '' if self._count == 1 else '"%d" ' % self._count
         return count_str + LINK_TYPE_MAP[self._link_type]
+#+END_SRC
+
+
+**** DONE Dependency
+
+The dependency relationship is not directly extracted from C++ code, but it can
+be manipulated when using the =Diagram= object.  In PlantUML, it corresponds to
+the =<..= link type (http://plantuml.com/class-diagram).
+
+#+NAME: py-class_dependency
+#+BEGIN_SRC python
+# %% Class dependency
+
+
+class ClassDependencyRelationship(ClassRelationship):
+    """Dependency relationship
+
+    Dependencies occur when member methods depend on an object of another class
+    in the diagram.
+    """
+    def __init__(self, c_parent, c_child, **kwargs):
+        """Constructor
+
+        Parameters
+        ----------
+        c_parent : str
+            Class corresponding to the type of the member variable in the
+            dependency relationship
+        c_child : str
+            Child (or client) class of the dependency relationship
+        kwargs : dict
+            Additional parameters passed to parent class
+        """
+        super().__init__('dependency', c_parent, c_child, **kwargs)
 #+END_SRC
 
 
@@ -1114,7 +1156,7 @@ be used to avoid this sorting step.
 class Diagram(object):
     """UML diagram object
 
-    This class lists the objects in the set of files considere, and the
+    This class lists the objects in the set of files considered, and the
     relationships between object.
 
     The main interface to the `Diagram` object is via the ``create_*`` and
@@ -1125,12 +1167,13 @@ class Diagram(object):
     Each method has versions for file and string inputs and folder string lists
     and file lists inputs.
     """
-    def __init__(self, template_file=None):
+    def __init__(self, template_file=None, flag_dep=False):
         """Constructor
 
         The `Diagram` class constructor simply initializes object lists.  It
         does not create objects or relationships.
         """
+        self._flag_dep = flag_dep
         self.clear()
         loader_list = []
         if template_file is not None:
@@ -1144,10 +1187,11 @@ class Diagram(object):
             loader_list), keep_trailing_newline=True)
 
     def clear(self):
-        """Reinitiliaze object"""
+        """Reinitialize object"""
         self._objects = []
         self._inheritance_list = []
         self._aggregation_list = []
+        self._dependency_list = []
 
     def _sort_list(input_list):
         """Sort list using `ClassRelationship` comparison
@@ -1172,6 +1216,7 @@ class Diagram(object):
             obj.sort_members()
         Diagram._sort_list(self._inheritance_list)
         Diagram._sort_list(self._aggregation_list)
+        Diagram._sort_list(self._dependency_list)
 
     def _build_helper(self, input, build_from='string', flag_build_lists=True,
                       flag_reset=False):
@@ -1296,6 +1341,8 @@ class Diagram(object):
         """
         self.build_inheritance_list()
         self.build_aggregation_list()
+        if self._flag_dep:
+            self.build_dependency_list()
 
     def parse_objects(self, header_file, arg_type='string'):
         """Parse objects
@@ -1341,8 +1388,8 @@ class Diagram(object):
 
         The implementation establishes a list of available classes and loops
         over objects to obtain their inheritance.  When parent classes are in
-        the list of available classes, their a `ClassInheritanceRelationship`
-        object is added to the list.
+        the list of available classes, a `ClassInheritanceRelationship` object
+        is added to the list.
         """
         self._inheritance_list = []
         # Build list of classes in diagram
@@ -1372,7 +1419,7 @@ class Diagram(object):
         corresponding to other classes defined in the `Diagram` object (keeping
         a count of occurrences).
 
-        The procedure first build an internal dictionary of relationships
+        The procedure first builds an internal dictionary of relationships
         found, augmenting the count using the :func:`_augment_comp` function.
         In a second phase, `ClassAggregationRelationship` objects are created
         for each relationships, using the calculated count.
@@ -1399,10 +1446,13 @@ class Diagram(object):
                 for var_type in var_types:
                     for parent in class_list:
                         if re.search(r'\b' + parent + r'\b', var_type):
+                            rel_type = 'composition'
+                            if '{}*'.format(parent) in var_type:
+                                rel_type = 'aggregation'
                             self._augment_comp(aggregation_counts, parent,
-                                               child_class)
+                                               child_class, rel_type=rel_type)
         for obj_class, obj_comp_list in aggregation_counts.items():
-            for comp_parent, comp_count in obj_comp_list:
+            for comp_parent, rel_type, comp_count in obj_comp_list:
                 obj_class_idx = class_list.index(obj_class)
                 obj_class_obj = class_list_obj[obj_class_idx]['obj']
                 comp_parent_idx = class_list.index(comp_parent)
@@ -1410,9 +1460,58 @@ class Diagram(object):
                 self._aggregation_list.append(
                     ClassAggregationRelationship(
                         obj_class_obj, comp_parent_obj, comp_count,
+                        rel_type=rel_type,
                         flag_use_namespace=flag_use_namespace))
 
-    def _augment_comp(self, c_dict, c_parent, c_child):
+    def build_dependency_list(self):
+        """Build list of dependency between objects
+
+        This method lists all the dependency relationships between objects
+        contained in the `Diagram` object (external relationships are ignored).
+
+        The implementation establishes a list of available classes and loops
+        over objects, list their methods adds a dependency relationship when a
+        method takes an object as input.
+        """
+
+        self._dependency_list = []
+        # Build list of classes in diagram
+        class_list_obj = self._make_class_list()
+        class_list = [c['name'] for c in class_list_obj]
+        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+
+        # Create relationships
+
+        # Add all objects name to list
+        objects_name = []
+        for obj in self._objects:
+            objects_name.append(obj.get_name())
+
+        # Dependency
+        for obj in self._objects:
+            if isinstance(obj, Class):
+                for member in obj._member_list:
+                    # Check if the member is a method
+                    if isinstance(member, ClassMethod):
+                        for method in member._param_list:
+                            index = ValueError
+                            try:
+                                # Check if the method param type is a Class
+                                # type
+                                index = [re.search(o, method[0]) is not None
+                                         for o in objects_name].index(True)
+                            except ValueError:
+                                pass
+                            if index != ValueError and \
+                               method[0] != obj.get_name():
+                                depend_obj = self._objects[index]
+
+                                self._dependency_list.append(
+                                    ClassDependencyRelationship(
+                                        depend_obj, obj,
+                                        flag_use_namespace=flag_use_namespace))
+
+    def _augment_comp(self, c_dict, c_parent, c_child, rel_type='aggregation'):
         """Increment the aggregation reference count
 
         If the aggregation relationship is not in the list (``c_dict``), then
@@ -1428,16 +1527,18 @@ class Diagram(object):
             Parent class name
         c_child : str
             Child class name
+        rel_type : str
+            Relationship type: ``aggregation`` or ``composition``
         """
         if c_child not in c_dict:
-            c_dict[c_child] = [[c_parent, 1], ]
+            c_dict[c_child] = [[c_parent, rel_type, 1], ]
         else:
-            parent_list = [c[0] for c in c_dict[c_child]]
-            if c_parent not in parent_list:
-                c_dict[c_child].append([c_parent, 1])
+            parent_list = [c[:2] for c in c_dict[c_child]]
+            if [c_parent, rel_type] not in parent_list:
+                c_dict[c_child].append([c_parent, rel_type, 1])
             else:
-                c_idx = parent_list.index(c_parent)
-                c_dict[c_child][c_idx][1] += 1
+                c_idx = parent_list.index([c_parent, rel_type])
+                c_dict[c_child][c_idx][2] += 1
 
     def render(self):
         """Render full UML diagram
@@ -1456,7 +1557,9 @@ class Diagram(object):
         template = self._env.get_template(self._template_file)
         return template.render(objects=self._objects,
                                inheritance_list=self._inheritance_list,
-                               aggregation_list=self._aggregation_list)
+                               aggregation_list=self._aggregation_list,
+                               dependency_list=self._dependency_list,
+                               flag_dep=self._flag_dep)
 #+END_SRC
 
 
@@ -1606,7 +1709,7 @@ output file.
 # %% Main function
 
 
-def CreatePlantUMLFile(file_list, output_file=None, template_file=None):
+def CreatePlantUMLFile(file_list, output_file=None, **diagram_kwargs):
     """Create PlantUML file from list of header files
 
     This function parses a list of C++ header files and generates a file for
@@ -1619,14 +1722,14 @@ def CreatePlantUMLFile(file_list, output_file=None, template_file=None):
         :func:`expand_file_list` function)
     output_file : str
         Name of the output file
-    template_file : str
-        When not None, the name of the jinja2 template file used for rendering
+    diagram_kwargs : dict
+        Additional parameters passed to :class:`Diagram` constructor
     """
     if isinstance(file_list, str):
         file_list_c = [file_list, ]
     else:
         file_list_c = file_list
-    diag = Diagram(template_file=template_file)
+    diag = Diagram(**diagram_kwargs)
     diag.create_from_file_list(list(set(expand_file_list(file_list_c))))
     diag_render = diag.render()
 
@@ -1670,6 +1773,15 @@ default template is as follows:
 {{ link.render() }}
 {% endfor %}
 {% endblock %}
+{% if flag_dep %}
+{% block dependency %}
+
+/' Dependency relationships '/
+{% for link in dependency_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+{% endif %}
 
 @enduml
 #+end_src
@@ -1713,6 +1825,10 @@ def main():(ref:module-main)
     parser.add_argument('-o', '--output-file', dest='output_file',
                         required=False, default=None, metavar='FILE',
                         help='output file')
+    parser.add_argument('-d', '--enable-dependency', dest='flag_dep',
+                        required=False, default=False, action='store_true',
+                        help='Extract dependency relationships from method ' +
+                        'arguments')
     parser.add_argument('-t', '--template-file', dest='template_file',
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
@@ -1721,7 +1837,8 @@ def main():(ref:module-main)
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
-                           template_file=args.template_file)
+                           template_file=args.template_file,
+                           flag_dep=args.flag_dep)
 
 # %% Standalone mode
 
@@ -1780,7 +1897,8 @@ The command line usage is (~hpp2plantuml --help~):
 
 
 #+BEGIN_EXAMPLE
-usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-t JINJA-FILE] [--version]
+usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-d] [-t JINJA-FILE]
+                    [--version]
 
 hpp2plantuml tool.
 
@@ -1790,6 +1908,8 @@ optional arguments:
                         input file (must be quoted when using wildcards)
   -o FILE, --output-file FILE
                         output file
+  -d, --enable-dependency
+                        Extract dependency relationships from method arguments
   -t JINJA-FILE, --template-file JINJA-FILE
                         path to jinja2 template file
   --version             show program's version number and exit
@@ -2105,8 +2225,10 @@ relationships (with and without count).
 |------------------------------------------------------+----------------------------------|
 | "class A{};\nclass B : A{};"                         | "A <@-- B\n"                     |
 | "class A{};\nclass B : public A{};"                  | "A <@-- B\n"                     |
-| "class B{};\nclass A{B obj;};"                       | "A o-- B\n"                      |
-| "class B{};\nclass A{B obj; B* ptr;};"               | "A \"2\" o-- B\n"                |
+| "class B{};\nclass A{B obj;};"                       | "A *-- B\n"                      |
+| "class B{};\nclass A{B* obj;};"                      | "A o-- B\n"                      |
+| "class B{};\nclass A{B * obj_ptr; B* ptr;};"         | "A \"2\" o-- B\n"                |
+| "class A{};\nclass B{void Method(A* obj);};"         | "A <.. B\n"                      |
 | "namespace T {class A{}; class B: A{};};"            | "namespace T {\n\tA <@-- B\n}\n" |
 | "namespace T {\nclass A{};};\nclass B{T::A* _obj;};" | ".B o-- T.A\n"                   |
 
@@ -2117,13 +2239,15 @@ class TestLink:
     def test_list_entries(self):
         for test_idx, (input_str, output_ref_str) in \
             enumerate(fix_test_list_def(test_list_link)):
-            obj_d = hpp2plantuml.Diagram()
+            obj_d = hpp2plantuml.Diagram(flag_dep=True)
             # Not very unittest-y
             obj_d.create_from_string(input_str)
             if len(obj_d._inheritance_list) > 0:
                 obj_l = obj_d._inheritance_list[0]
             elif len(obj_d._aggregation_list) > 0:
                 obj_l = obj_d._aggregation_list[0]
+            elif len(obj_d._dependency_list) > 0:
+                obj_l = obj_d._dependency_list[0]
             nt.assert_equal(output_ref_str, obj_l.render(),
                             'Test {0} failed [input: {1}]'.format(test_idx,
                                                                   input_str))
@@ -2184,6 +2308,7 @@ class Class03 {
 public:
 	Class03();
 	~Class03();
+	void Method(Interface::Class04& c4);
 private:
 	Class01* _obj;
 	Class01* _data;
@@ -2262,6 +2387,7 @@ class Class03 <template<typename T>> {
 	-_obj : Class01*
 	-_typed_obj : T*
 	-_obj_list : list<Class02>
+	+Method(Interface::Class04& c4) : void
 }
 
 
@@ -2312,10 +2438,121 @@ namespace Interface {
 .Class03 "2" o-- .Class01
 
 
-.Class03 o-- .Class02
+.Class03 *-- .Class02
 
 
 Interface.Class04 o-- .Class01
+
+
+
+
+
+
+/' Dependency relationships '/
+
+Interface.Class04 <.. .Class03
+
+
+
+
+
+@enduml
+#+END_SRC
+
+#+NAME: puml-simple-classes-no-dependency
+#+BEGIN_SRC plantuml :mkdirp yes :tangle tests/simple_classes_nodep.puml
+@startuml
+
+
+
+
+
+/' Objects '/
+
+abstract class Class01 {
+	+{abstract} AbstractPublicMethod(int param) : bool
+	+PublicMethod(int param) : bool {query}
+	+{static} StaticPublicMethod(bool param) : bool
+	#{abstract} _AbstractMethod(int param) : bool
+	#_ProtectedMethod(int param) : bool
+	#{static} _StaticProtectedMethod(bool param) : bool
+	#_protected_var : int
+	+public_var : int
+}
+
+
+class Class02 {
+	+AbstractPublicMethod(int param) : bool
+	-_AbstractMethod(int param) : bool
+	-_PrivateMethod(int param) : bool
+	-{static} _StaticPrivateMethod(bool param) : bool
+	-_private_var : int
+}
+
+
+class Class03 <template<typename T>> {
+	+Class03()
+	+~Class03()
+	-_data : Class01*
+	-_obj : Class01*
+	-_typed_obj : T*
+	-_obj_list : list<Class02>
+	+Method(Interface::Class04& c4) : void
+}
+
+
+namespace Interface {
+	class Class04 {
+		+Class04()
+		+~Class04()
+		-_obj : Class01*
+		-_flag : bool
+	}
+}
+
+
+namespace Interface {
+	class Class04_derived {
+		+Class04_derived()
+		+~Class04_derived()
+		-_var : int
+	}
+}
+
+
+enum Enum01 {
+	VALUE_0
+	VALUE_1
+	VALUE_2
+}
+
+
+
+
+
+/' Inheritance relationships '/
+
+.Class01 <|-- .Class02
+
+
+namespace Interface {
+	Class04 <|-- Class04_derived
+}
+
+
+
+
+
+/' Aggregation relationships '/
+
+.Class03 "2" o-- .Class01
+
+
+.Class03 *-- .Class02
+
+
+Interface.Class04 o-- .Class01
+
 
 
 
@@ -2359,17 +2596,29 @@ class TestFullDiagram():
         self._diag_saved_ref = ''
         with open(os.path.join(test_fold, 'simple_classes.puml'), 'rt') as fid:
             self._diag_saved_ref = fid.read()
+        self._diag_saved_ref_nodep = ''
+        with open(os.path.join(test_fold,
+                               'simple_classes_nodep.puml'), 'rt') as fid:
+            self._diag_saved_ref_nodep = fid.read()
 
     def test_full_files(self):
+        self._test_full_files_helper(False)
+        self._test_full_files_helper(True)
+
+    def _test_full_files_helper(self, flag_dep=False):
         # Create first version
         file_list_ref = list(set(hpp2plantuml.hpp2plantuml.expand_file_list(
             [os.path.join(test_fold, f) for f in self._input_files])))
-        diag_ref = hpp2plantuml.Diagram()
+        diag_ref = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_ref.create_from_file_list(file_list_ref)
         diag_render_ref = diag_ref.render()
 
         # Compare to saved reference
-        nt.assert_equal(self._diag_saved_ref, diag_render_ref)
+        if flag_dep:
+            saved_ref = self._diag_saved_ref
+        else:
+            saved_ref = self._diag_saved_ref_nodep
+        nt.assert_equal(saved_ref, diag_render_ref)
 
         # # Validate equivalent inputs
 
@@ -2379,19 +2628,19 @@ class TestFullDiagram():
                 [os.path.join(test_fold, f) for f in file_list])))
 
             # Create from file list
-            diag_c = hpp2plantuml.Diagram()
+            diag_c = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c.create_from_file_list(file_list_c)
             nt.assert_equal(diag_render_ref, diag_c.render())
 
             # Add from file list
-            diag_c_add = hpp2plantuml.Diagram()
+            diag_c_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c_add.add_from_file_list(file_list_c)
             diag_c_add.build_relationship_lists()
             diag_c_add.sort_elements()
             nt.assert_equal(diag_render_ref, diag_c_add.render())
 
             # Create from first file, add from rest of the list
-            diag_c_file = hpp2plantuml.Diagram()
+            diag_c_file = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c_file.create_from_file(file_list_c[0])
             for file_c in file_list_c[1:]:
                 diag_c_file.add_from_file(file_c)
@@ -2406,19 +2655,19 @@ class TestFullDiagram():
                 input_str_list.append(fid.read())
 
         # Create from string list
-        diag_str_list = hpp2plantuml.Diagram()
+        diag_str_list = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str_list.create_from_string_list(input_str_list)
         nt.assert_equal(diag_render_ref, diag_str_list.render())
 
         # Add from string list
-        diag_str_list_add = hpp2plantuml.Diagram()
+        diag_str_list_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str_list_add.add_from_string_list(input_str_list)
         diag_str_list_add.build_relationship_lists()
         diag_str_list_add.sort_elements()
         nt.assert_equal(diag_render_ref, diag_str_list_add.render())
 
         # Create from string
-        diag_str = hpp2plantuml.Diagram()
+        diag_str = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str.create_from_string('\n'.join(input_str_list))
         nt.assert_equal(diag_render_ref, diag_str.render())
         # Reset and parse
@@ -2427,7 +2676,7 @@ class TestFullDiagram():
         nt.assert_equal(diag_render_ref, diag_str.render())
 
         # Manually build object
-        diag_manual_add = hpp2plantuml.Diagram()
+        diag_manual_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
         for idx, (file_c, string_c) in enumerate(zip(file_list_ref,
                                                      input_str_list)):
             if idx == 0:
@@ -2439,6 +2688,10 @@ class TestFullDiagram():
         nt.assert_equal(diag_render_ref, diag_manual_add.render())
 
     def test_main_function(self):
+        #self._test_main_function_helper(False)
+        self._test_main_function_helper(True)
+
+    def _test_main_function_helper(self, flag_dep=False):
 
         # List files
         file_list = [os.path.join(test_fold, f) for f in self._input_files]
@@ -2446,29 +2699,33 @@ class TestFullDiagram():
         # Output to string
         with io.StringIO() as io_stream:
             sys.stdout = io_stream
-            hpp2plantuml.CreatePlantUMLFile(file_list)
+            hpp2plantuml.CreatePlantUMLFile(file_list, flag_dep=flag_dep)
             io_stream.seek(0)
             # Read string output, exclude final line return
             output_str = io_stream.read()[:-1]
         sys.stdout = sys.__stdout__
-        nt.assert_equal(self._diag_saved_ref, output_str)
+        if flag_dep:
+            saved_ref = self._diag_saved_ref
+        else:
+            saved_ref = self._diag_saved_ref_nodep
+        nt.assert_equal(saved_ref, output_str)
 
         # Output to file
         output_fname = 'output.puml'
         for template in [None, os.path.join(test_fold,
                                             'custom_template.puml')]:
             hpp2plantuml.CreatePlantUMLFile(file_list, output_fname,
-                                            template_file=template)
+                                            template_file=template,
+                                            flag_dep=flag_dep)
             output_fcontent = ''
             with open(output_fname, 'rt') as fid:
                 output_fcontent = fid.read()
             if template is None:
                 # Default template check
-                nt.assert_equal(self._diag_saved_ref, output_fcontent)
+                nt.assert_equal(saved_ref, output_fcontent)
             else:
                 # Check that all lines of reference are in the output
-                ref_re = re.search('(@startuml)\s*(.*)', self._diag_saved_ref,
-                                   re.DOTALL)
+                ref_re = re.search('(@startuml)\s*(.*)', saved_ref, re.DOTALL)
                 assert ref_re
                 # Build regular expression: allow arbitrary text between
                 # @startuml and the rest of the string
@@ -2589,7 +2846,8 @@ import codecs
 from setuptools import setup, find_packages, Command
 try:
     import sphinx
-    import sphinx.apidoc
+    import sphinx.ext.apidoc
+    import sphinx.cmd.build
 except ImportError:
     pass
 #+END_SRC
@@ -2684,16 +2942,16 @@ class Sphinx(Command):
         sys.path.append('src')
         # Run sphinx by calling the main method, '--full' also adds a
         # conf.py
-        sphinx.apidoc.main(
-            ['', '--private', '-H', metadata.name,
+        sphinx.ext.apidoc.main(
+            ['--private', '-H', metadata.name,
              '-A', metadata.author,
              '-V', metadata.version,
              '-R', metadata.version,
              '-o', os.path.join('doc', 'source'), src_dir]
         )
         # build the doc sources
-        sphinx.main(['', os.path.join('doc', 'source'),
-                     os.path.join('doc', 'build', 'html')])
+        sphinx.cmd.build.main([os.path.join('doc', 'source'),
+                               os.path.join('doc', 'build', 'html')])
 #+END_SRC
 
 
@@ -3361,3 +3619,59 @@ encapsulated in the following source block.
   - [X] tangles source files
   - [X] creates documentation rst (and README.rst)
 - [X] Link to org-mode rst documentation from index.rst -> Use only org-mode rst?
+
+** v0.6
+
+*** DONE Rename =do_parsed_member=
+    CLOSED: [2019-10-14 Mon 17:44]
+
+*** DONE Possible bug in =Aggregation=
+    CLOSED: [2019-10-15 Tue 00:25]
+
+#+begin_src python :tangle no
+ClassAggregationRelationship(
+    obj_class_obj, comp_parent_obj, comp_count,
+    flag_use_namespace=flag_use_namespace))
+#+end_src
+
+- The result in v05 is correct
+- The naming convention is inconsistent (switch of parent/child arguments)
+
+**** Code comment
+
+I would suggest leaving this change out of this pull request.
+
+I believe the current version (v0.5) is producing the correct output:
+#+begin_src c++
+class Engine {};
+class Car{ Engine* engine; };
+#+end_src
+produces =Car o-- Engine= as expected.
+
+However, the current code is misleading/wrong, thanks for pointing that out.  I
+am passing ~obj_class_obj~ as ~c_parent~ and ~comp_parent_obj~ as ~c_child~ when
+instantiating the =ClassAggregationRelationship= object.  This is wrong and your
+change is correct, but the code needs to be further modified to produce the same
+output as v0.5.  I would propose removing this change and fix that in another
+commit (I will take care of that before releasing v0.6).
+
+*** DONE Run tests
+    CLOSED: [2019-10-14 Mon 17:44]
+
+*** DONE Example for dependency list
+    CLOSED: [2019-10-15 Tue 00:25]
+
+*** DONE Pull request review
+    CLOSED: [2019-10-14 Mon 17:44]
+
+Thanks for the pull request.  It looks good.  I have left a few comments and
+suggestions (mostly nitpicking) for you to look at.
+
+I have a general question about the typical use-case for this change.  What c++
+code would produce a dependency relationship (could you share an example?)?  Are
+you using the Diagram object directly (without c++ header)?
+
+The only other thing is I'd like to make sure all tests pass and that the new
+feature is added to the unit tests before merging this.
+
+It should be easy to get this merged.  Thanks a lot for your work.

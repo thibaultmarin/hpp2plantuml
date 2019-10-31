@@ -94,13 +94,4 @@ Interface.Class04 o-- .Class01
 
 
 
-
-/' Dependency relationships '/
-
-Interface.Class04 <.. .Class03
-
-
-
-
-
 @enduml
