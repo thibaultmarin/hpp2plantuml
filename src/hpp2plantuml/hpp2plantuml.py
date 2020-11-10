@@ -31,7 +31,6 @@ LINK_TYPE_MAP = {
 # - The third element is a function returning the corresponding internal object
 CONTAINER_TYPE_MAP = [
     ['classes', lambda objs: objs.items(), lambda obj: Class(obj)],
-    ['structs', lambda objs: objs.items(), lambda obj: Struct(obj)],
     ['enums', lambda objs: objs, lambda obj: Enum(obj)]
 ]
 
@@ -77,7 +76,7 @@ class Container(object):
 
         Parameters
         ----------
-        header_container : CppClass, CppStruct or CppEnum
+        header_container : CppClass or CppEnum
             Parsed header for container
         """
         namespace = header_container.get('namespace', None)
@@ -93,7 +92,7 @@ class Container(object):
 
         Parameters
         ----------
-        header_container : CppClass, CppStruct or CppEnum
+        header_container : CppClass or CppEnum
             Parsed header for container
         """
         raise NotImplementedError(
@@ -223,7 +222,7 @@ class Class(Container):
             element is the class name and the second element is a CppClass
             object)
         """
-        super().__init__('class', header_class[0])
+        super().__init__(header_class[1]['declaration_method'], header_class[0])
         self._abstract = header_class[1]['abstract']
         self._template_type = None
         if 'template' in header_class[1]:
@@ -251,8 +250,9 @@ class Class(Container):
             for member_prop in MEMBER_PROP_MAP.keys():
                 member_list = header_class[member_type][member_prop]
                 for header_member in member_list:
-                    self._member_list.append(
-                        member_type_handler(header_member, member_prop))
+                    if not header_member.get('deleted', False):
+                        self._member_list.append(
+                            member_type_handler(header_member, member_prop))
 
     def build_variable_type_list(self):
         """Get type of member variables
@@ -466,28 +466,6 @@ class ClassMethod(ClassMember):
                                for it in self._param_list) + ')'
 
         return method_str
-
-# %% Struct object
-
-
-class Struct(Class):
-    """Representation of C++ struct objects
-
-    This class derived is almost identical to `Class`, the only difference
-    being the container type name ("struct" instead of "class").
-    """
-    def __init__(self, header_struct):
-        """Class constructor
-
-        Parameters
-        ----------
-        header_struct : list (str, CppStruct)
-            Parsed header for struct object (two-element list where the first
-            element is the structure name and the second element is a CppStruct
-            object)
-        """
-        super().__init__(header_struct[0])
-        super(Class).__init__('struct')
 
 # %% Enum object
 
@@ -1190,8 +1168,9 @@ def _cleanup_type(type_str):
     str
         The type string after cleanup
     """
-    return re.sub(r'[ ]+([*&])', r'\1',
-                  re.sub(r'(\s)+', r'\1', type_str))
+    return re.sub('\s*([<>])\s*', r'\1',
+                  re.sub(r'[ ]+([*&])', r'\1',
+                         re.sub(r'(\s)+', r'\1', type_str)))
 
 # %% Single line version of string
 
@@ -1319,7 +1298,7 @@ def main():
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.6')
+                        version='%(prog)s ' + '0.7')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,

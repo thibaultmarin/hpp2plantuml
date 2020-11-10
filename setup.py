@@ -34,7 +34,7 @@ CLASSIFIERS = [
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-INSTALL_REQUIRES = ['argparse', 'CppHeaderParser', 'jinja2']
+INSTALL_REQUIRES = ['argparse', 'robotpy-cppheaderparser', 'jinja2']
 INSTALL_REQUIRES += ['sphinx', ]
 SETUP_REQUIRES = ['sphinx', 'numpydoc']
 ###################################################################

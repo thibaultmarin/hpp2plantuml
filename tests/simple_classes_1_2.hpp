@@ -7,6 +7,7 @@ protected:
 	static bool _StaticProtectedMethod(bool param);
 	virtual bool _AbstractMethod(int param) = 0;
 public:
+	Class01& operator=(const Class01&) & = delete;
 	int public_var;
 	bool PublicMethod(int param) const;
 	static bool StaticPublicMethod(bool param);

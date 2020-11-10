@@ -25,7 +25,7 @@ hierarchies.  It aims at supporting:
 
 - dependency relationships
 
-The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+The package relies on the `CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ package for parsing of C++ header
 files.
 
 

@@ -13,7 +13,7 @@ The current version of the code is:
 ::
     :name: hpp2plantuml-version
 
-    0.6
+    0.7
 
 
 The source code can be found on GitHub:
@@ -43,7 +43,7 @@ hierarchies.  It aims at supporting:
 
 - dependency relationships
 
-The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+The package relies on the `CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ package for parsing of C++ header
 files.
 
 License
@@ -82,18 +82,18 @@ Requirements
 ------------
 
 This module has mostly standard dependencies; the only exception is the
-`CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ module used to parse header files.
+`CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ module used to parse header files.
 
 .. table:: List of dependencies.
     :name: py-dependency-list
 
-    +-----------------+
-    | argparse        |
-    +-----------------+
-    | CppHeaderParser |
-    +-----------------+
-    | jinja2          |
-    +-----------------+
+    +-------------------------+-----------------+
+    | argparse                | argparse        |
+    +-------------------------+-----------------+
+    | robotpy-cppheaderparser | CppHeaderParser |
+    +-------------------------+-----------------+
+    | jinja2                  | jinja2          |
+    +-------------------------+-----------------+
 
 The full list of non-standard dependencies is produced by the following source
 block (returning either imports or a dependency list used in `sec-package-setup-py`_):
@@ -104,7 +104,7 @@ block (returning either imports or a dependency list used in `sec-package-setup-
     (cond
      ((string= output "import")
       (mapconcat
-       (lambda (el) (concat "import " (car el))) dep-list "\n"))
+       (lambda (el) (concat "import " (cadr el))) dep-list "\n"))
      ((string= output "requirements")
       (concat "["
               (mapconcat
@@ -190,7 +190,6 @@ of elementary properties and links.
     # - The third element is a function returning the corresponding internal object
     CONTAINER_TYPE_MAP = [
         ['classes', lambda objs: objs.items(), lambda obj: Class(obj)],
-        ['structs', lambda objs: objs.items(), lambda obj: Struct(obj)],
         ['enums', lambda objs: objs, lambda obj: Enum(obj)]
     ]
 
@@ -216,7 +215,8 @@ Base class
 C++ objects are represented by objects derived from the base ``Container`` class.
 The ``Container`` class is abstract and contains:
 
-- the container type (``class``, ``enum``, ``struct``),
+- the container type (``class``, ``enum``, ``struct`` objects are handled as ``class``
+  objects),
 
 - the object name,
 
@@ -274,7 +274,7 @@ The ``Container`` class is abstract and contains:
 
             Parameters
             ----------
-            header_container : CppClass, CppStruct or CppEnum
+            header_container : CppClass or CppEnum
                 Parsed header for container
             """
             namespace = header_container.get('namespace', None)
@@ -290,7 +290,7 @@ The ``Container`` class is abstract and contains:
 
             Parameters
             ----------
-            header_container : CppClass, CppStruct or CppEnum
+            header_container : CppClass or CppEnum
                 Parsed header for container
             """
             raise NotImplementedError(
@@ -439,7 +439,7 @@ which is used to determine aggregation relationships between classes.
                 element is the class name and the second element is a CppClass
                 object)
             """
-            super().__init__('class', header_class[0])
+            super().__init__(header_class[1]['declaration_method'], header_class[0])
             self._abstract = header_class[1]['abstract']
             self._template_type = None
             if 'template' in header_class[1]:
@@ -467,8 +467,9 @@ which is used to determine aggregation relationships between classes.
                 for member_prop in MEMBER_PROP_MAP.keys():
                     member_list = header_class[member_type][member_prop]
                     for header_member in member_list:
-                        self._member_list.append(
-                            member_type_handler(header_member, member_prop))
+                        if not header_member.get('deleted', False):
+                            self._member_list.append(
+                                member_type_handler(header_member, member_prop))
 
         def build_variable_type_list(self):
             """Get type of member variables
@@ -729,38 +730,6 @@ implemented in the future.
                                    for it in self._param_list) + ')'
 
             return method_str
-
-Structures
-^^^^^^^^^^
-
-While ``struct`` objects are currently not supported, their addition should be
-relatively straightforward and the ``Struct`` class may simply inherit from the
-``Class`` class.  The following should give a starting point.
-
-.. code:: python
-    :name: py-render-structs
-
-    # %% Struct object
-
-
-    class Struct(Class):
-        """Representation of C++ struct objects
-
-        This class derived is almost identical to `Class`, the only difference
-        being the container type name ("struct" instead of "class").
-        """
-        def __init__(self, header_struct):
-            """Class constructor
-
-            Parameters
-            ----------
-            header_struct : list (str, CppStruct)
-                Parsed header for struct object (two-element list where the first
-                element is the structure name and the second element is a CppStruct
-                object)
-            """
-            super().__init__(header_struct[0])
-            super(Class).__init__('struct')
 
 Enumeration lists
 ^^^^^^^^^^^^^^^^^
@@ -1618,8 +1587,9 @@ variable types by eliminating spaces around ``\*`` characters.
         str
             The type string after cleanup
         """
-        return re.sub(r'[ ]+([*&])', r'\1',
-                      re.sub(r'(\s)+', r'\1', type_str))
+        return re.sub('\s*([<>])\s*', r'\1',
+                      re.sub(r'[ ]+([*&])', r'\1',
+                             re.sub(r'(\s)+', r'\1', type_str)))
 
 The ``_cleanup_single_line`` function transforms a multiline input string into a
 single string version.
@@ -1864,7 +1834,7 @@ to parse input arguments.  The function passes the command line arguments to the
                             required=False, default=None, metavar='JINJA-FILE',
                             help='path to jinja2 template file')
         parser.add_argument('--version', action='version',
-                            version='%(prog)s ' + '0.6')
+                            version='%(prog)s ' + '0.7')
         args = parser.parse_args()
         if len(args.input_files) > 0:
             CreatePlantUMLFile(args.input_files, args.output_file,
@@ -2129,7 +2099,7 @@ the representation of variables.
             for test_idx, (input_str, output_ref_str) in \
                 enumerate(fix_test_list_def(test_list_classvar)):
                 p = get_parsed_element(input_str)
-                class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                     input_str.replace('\n', ' '))
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
@@ -2174,7 +2144,7 @@ supported by PlantUML.
             for test_idx, (input_str, output_ref_str) in \
                 enumerate(fix_test_list_def(test_list_classmethod)):
                 p = get_parsed_element(input_str)
-                class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                     input_str.replace('\n', ' '))
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
@@ -2192,19 +2162,21 @@ Table `tbl-unittest-class`_.  It includes templates and abstract classes.
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-class
 
-    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | C++                                                                   | plantuml                                                                               |
-    +=======================================================================+========================================================================================+
-    | "class Test {\nprotected:\nint & member; };"                          | "class Test {\n\t#member : int&\n}\n"                                                  |
-    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "class Test\n{\npublic:\nvirtual int func() = 0; };"                  | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                               |
-    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "template <typename T> class Test{\nT* func(T& arg); };"              | "class Test <template <typename T>> {\n\t-func(T& arg) : T\*\n}\n"                     |
-    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "template <typename T> class Test{\nvirtual T\* func(T& arg)=0; };"   | "abstract class Test <template <typename T>> {\n\t-{abstract} func(T& arg) : T\*\n}\n" |
-    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "namespace Interface {\nclass Test {\nprotected:\nint & member; };};" | "namespace Interface {\n\tclass Test {\n\t\t#member : int&\n\t}\n}\n"                  |
-    +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | C++                                                                   | plantuml                                                                              |
+    +=======================================================================+=======================================================================================+
+    | "class Test {\nprotected:\nint & member; };"                          | "class Test {\n\t#member : int&\n}\n"                                                 |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "struct Test {\nprotected:\nint & member; };"                         | "struct Test {\n\t#member : int&\n}\n"                                                |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "class Test\n{\npublic:\nvirtual int func() = 0; };"                  | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                              |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "template <typename T> class Test{\nT* func(T& arg); };"              | "class Test <template<typename T>> {\n\t-func(T& arg) : T\*\n}\n"                     |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "template <typename T> class Test{\nvirtual T\* func(T& arg)=0; };"   | "abstract class Test <template<typename T>> {\n\t-{abstract} func(T& arg) : T\*\n}\n" |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "namespace Interface {\nclass Test {\nprotected:\nint & member; };};" | "namespace Interface {\n\tclass Test {\n\t\t#member : int&\n\t}\n}\n"                 |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
 
 .. code:: python
     :name: test-unit-class
@@ -2217,7 +2189,7 @@ Table `tbl-unittest-class`_.  It includes templates and abstract classes.
             for test_idx, (input_str, output_ref_str) in \
                 enumerate(fix_test_list_def(test_list_class)):
                 p = get_parsed_element(input_str)
-                class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                     input_str.replace('\n', ' '))
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
@@ -2347,6 +2319,7 @@ The following can be extended to improve testing, as long as the corresponding
     	static bool _StaticProtectedMethod(bool param);
     	virtual bool _AbstractMethod(int param) = 0;
     public:
+    	Class01& operator=(const Class01&) & = delete;
     	int public_var;
     	bool PublicMethod(int param) const;
     	static bool StaticPublicMethod(bool param);
@@ -2948,7 +2921,7 @@ obtained using the source block described `sec-org-el-version`_.
 
     __title__ = "hpp2plantuml"
     __description__ = "Convert C++ header files to PlantUML"
-    __version__ = '0.6'
+    __version__ = '0.7'
     __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
     __doc__ = __description__ + " <" + __uri__ + ">"
     __author__ = "Thibault Marin"
@@ -3046,7 +3019,7 @@ The non-boilerplate part of the ``setup.py`` file defines the package informatio
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ]
-    INSTALL_REQUIRES = ['argparse', 'CppHeaderParser', 'jinja2']
+    INSTALL_REQUIRES = ['argparse', 'robotpy-cppheaderparser', 'jinja2']
     INSTALL_REQUIRES += ['sphinx', ]
     SETUP_REQUIRES = ['sphinx', 'numpydoc']
     ###################################################################
@@ -3219,7 +3192,7 @@ org-file (converted to RST format).
 
     - dependency relationships
 
-    The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+    The package relies on the `CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ package for parsing of C++ header
     files.
 
 
@@ -3463,9 +3436,9 @@ content of the file is mostly following the defaults, with a few exceptions:
     # built documents.
     #
     # The short X.Y version.
-    version = u'v' + u'0.6'
+    version = u'v' + u'0.7'
     # The full version, including alpha/beta/rc tags.
-    release = u'v' + u'0.6'
+    release = u'v' + u'0.7'
 
     # The language for content autogenerated by Sphinx. Refer to documentation
     # for a list of supported languages.
@@ -3539,7 +3512,7 @@ content of the file is mostly following the defaults, with a few exceptions:
     # The name for this set of Sphinx documents.
     # "<project> v<release> documentation" by default.
     #
-    # html_title = u'hpp2plantuml ' + u'v' + u'0.6'
+    # html_title = u'hpp2plantuml ' + u'v' + u'0.7'
 
     # A shorter title for the navigation bar.  Default is the same as html_title.
     #
@@ -3790,7 +3763,7 @@ to the automatically generated and the org-file documents.
 
     - dependency relationships
 
-    The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+    The package relies on the `CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ package for parsing of C++ header
     files.
 
 

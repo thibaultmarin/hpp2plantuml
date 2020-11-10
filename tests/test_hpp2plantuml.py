@@ -73,7 +73,7 @@ class TestClassVariable:
         for test_idx, (input_str, output_ref_str) in \
             enumerate(fix_test_list_def(test_list_classvar)):
             p = get_parsed_element(input_str)
-            class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+            class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                 input_str.replace('\n', ' '))
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
@@ -101,7 +101,7 @@ class TestClassMethod:
         for test_idx, (input_str, output_ref_str) in \
             enumerate(fix_test_list_def(test_list_classmethod)):
             p = get_parsed_element(input_str)
-            class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+            class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                 input_str.replace('\n', ' '))
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
@@ -115,6 +115,11 @@ protected:
 int & member; };""", """class Test {
 	#member : int&
 }
+"""], ["""struct Test {
+protected:
+int & member; };""", """struct Test {
+	#member : int&
+}
 """], ["""class Test
 {
 public:
@@ -122,11 +127,11 @@ virtual int func() = 0; };""", """abstract class Test {
 	+{abstract} func() : int
 }
 """], ["""template <typename T> class Test{
-T* func(T& arg); };""", """class Test <template <typename T>> {
+T* func(T& arg); };""", """class Test <template<typename T>> {
 	-func(T& arg) : T*
 }
 """], ["""template <typename T> class Test{
-virtual T* func(T& arg)=0; };""", """abstract class Test <template <typename T>> {
+virtual T* func(T& arg)=0; };""", """abstract class Test <template<typename T>> {
 	-{abstract} func(T& arg) : T*
 }
 """], ["""namespace Interface {
@@ -146,7 +151,7 @@ class TestClass:
         for test_idx, (input_str, output_ref_str) in \
             enumerate(fix_test_list_def(test_list_class)):
             p = get_parsed_element(input_str)
-            class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+            class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                 input_str.replace('\n', ' '))
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
