@@ -21,9 +21,14 @@ abstract class Class01 {
 class Class02 {
 	+AbstractPublicMethod(int param) : bool
 	-_AbstractMethod(int param) : bool
-	-_PrivateMethod(int param) : bool
+	-_PrivateMethod(T param) : bool
 	-{static} _StaticPrivateMethod(bool param) : bool
 	-_private_var : int
+}
+
+
+class Class02::ClassNested {
+	-var : int
 }
 
 
@@ -43,6 +48,7 @@ namespace Interface {
 		+Class04()
 		+~Class04()
 		-_obj : Class01*
+		-_var : T
 		-_flag : bool
 	}
 }
@@ -61,6 +67,32 @@ enum Enum01 {
 	VALUE_0
 	VALUE_1
 	VALUE_2
+}
+
+
+namespace Interface {
+	class Struct {
+		+a : int
+	}
+}
+
+
+class anon-union-1::anon-struct-1 {
+	+x : float
+	+y : float
+	+z : float
+}
+
+
+class anon-union-1::anon-struct-2 {
+	+phi : float
+	+rho : float
+	+theta : float
+}
+
+
+class anon-union-1 {
+	+vec : float
 }
 
 

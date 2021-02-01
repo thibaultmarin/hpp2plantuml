@@ -13,7 +13,7 @@ The current version of the code is:
 ::
     :name: hpp2plantuml-version
 
-    0.7
+    0.7.1
 
 
 The source code can be found on GitHub:
@@ -249,10 +249,10 @@ The ``Container`` class is abstract and contains:
                 String representation of container type (``class``, ``struct`` or
                 ``enum``)
             name : str
-                Object name
+                Object name (with ``<``, ``>`` characters removed)
             """
             self._container_type = container_type
-            self._name = name
+            self._name = re.sub('[<>]', '', name)
             self._member_list = []
             self._namespace = None
 
@@ -270,7 +270,10 @@ The ``Container`` class is abstract and contains:
             """Initialize object from header
 
             Extract object from CppHeaderParser dictionary representing a class, a
-            struct or an enum object.  This extracts the namespace.
+            struct or an enum object.  This extracts the namespace.  Use the
+            ``parent`` field to determine is the ``namespace`` description from
+            ``CppHeaderParser`` is a parent object (e.g. class) or a proper
+            ``namespace``.
 
             Parameters
             ----------
@@ -279,7 +282,8 @@ The ``Container`` class is abstract and contains:
             """
             namespace = header_container.get('namespace', None)
             if namespace:
-                self._namespace = re.sub(':+$', '', namespace)
+                if not header_container.get('parent', None):
+                    self._namespace = _cleanup_namespace(namespace)
             self._do_parse_members(header_container)
 
         def _do_parse_members(self, header_container):
@@ -502,14 +506,19 @@ which is used to determine aggregation relationships between classes.
             """Create the string representation of the class
 
             Return the class name with template and abstract properties if
-            present.  The output string follows the PlantUML syntax.
+            present.  The output string follows the PlantUML syntax.  Note that
+            ``struct`` and ``union`` types are rendered as ``classes``.
 
             Returns
             -------
             str
                 String representation of class
             """
-            class_str = self._container_type + ' ' + self._name
+            if self._container_type in ['struct', 'union']:
+                container_type = 'class'
+            else:
+                container_type = self._container_type
+            class_str = container_type + ' ' + self._name
             if self._abstract:
                 class_str = 'abstract ' + class_str
             if self._template_type is not None:
@@ -1591,6 +1600,27 @@ variable types by eliminating spaces around ``\*`` characters.
                       re.sub(r'[ ]+([*&])', r'\1',
                              re.sub(r'(\s)+', r'\1', type_str)))
 
+    def _cleanup_namespace(ns_str):
+        """Cleanup string representing a C++ namespace
+
+        Cleanup simply consists in removing leading and trailing colon characters
+        (``:``), and ``<>`` blocks.
+
+        Parameters
+        ----------
+        ns_str : str
+            A string representing a C++ namespace
+
+        Returns
+        -------
+        str
+            The namespace string after cleanup
+        """
+        return re.sub('<([^>]+)>', r'\1',
+                      re.sub('(.+)<[^>]+>', r'\1',
+                             re.sub('^:+', '',
+                                    re.sub(':+$', '', ns_str))))
+
 The ``_cleanup_single_line`` function transforms a multiline input string into a
 single string version.
 
@@ -1651,7 +1681,7 @@ existing filenames without wildcards.
         """
         file_list = []
         for input_file in input_files:
-            file_list += glob.glob(input_file)
+            file_list += glob.glob(input_file, recursive=True)
         return file_list
 
 Namespace wrapper
@@ -1834,7 +1864,7 @@ to parse input arguments.  The function passes the command line arguments to the
                             required=False, default=None, metavar='JINJA-FILE',
                             help='path to jinja2 template file')
         parser.add_argument('--version', action='version',
-                            version='%(prog)s ' + '0.7')
+                            version='%(prog)s ' + '0.7.1')
         args = parser.parse_args()
         if len(args.input_files) > 0:
             CreatePlantUMLFile(args.input_files, args.output_file,
@@ -2167,7 +2197,7 @@ Table `tbl-unittest-class`_.  It includes templates and abstract classes.
     +=======================================================================+=======================================================================================+
     | "class Test {\nprotected:\nint & member; };"                          | "class Test {\n\t#member : int&\n}\n"                                                 |
     +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
-    | "struct Test {\nprotected:\nint & member; };"                         | "struct Test {\n\t#member : int&\n}\n"                                                |
+    | "struct Test {\nprotected:\nint & member; };"                         | "class Test {\n\t#member : int&\n}\n"                                                 |
     +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
     | "class Test\n{\npublic:\nvirtual int func() = 0; };"                  | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                              |
     +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
@@ -2330,8 +2360,12 @@ The following can be extended to improve testing, as long as the corresponding
     public:
     	bool AbstractPublicMethod(int param) override;
     private:
+    	class ClassNested {
+    		int var;
+    	};
     	int _private_var;
-    	bool _PrivateMethod(int param);
+    	template <typename T>
+    	bool _PrivateMethod(T param);
     	static bool _StaticPrivateMethod(bool param);
     	bool _AbstractMethod(int param) override;
     };
@@ -2361,6 +2395,7 @@ The following can be extended to improve testing, as long as the corresponding
     	private:
     		bool _flag;
     		Class01* _obj;
+    		T _var;
     	};
 
     	class Class04_derived : public Class04 {
@@ -2371,6 +2406,24 @@ The following can be extended to improve testing, as long as the corresponding
     		int _var;
     	};
 
+    	struct Struct {
+    		int a;
+    	};
+    };
+
+    // Anonymous union (issue #9)
+    union {
+    	struct {
+    		float x;
+    		float y;
+    		float z;
+    	};
+    	struct {
+    		float rho;
+    		float theta;
+    		float phi;
+    	};
+    	float vec[3];
     };
 
 .. _sec-test-system-ref:
@@ -2409,9 +2462,14 @@ The comparison takes into account the white space, indentation, etc.
     class Class02 {
     	+AbstractPublicMethod(int param) : bool
     	-_AbstractMethod(int param) : bool
-    	-_PrivateMethod(int param) : bool
+    	-_PrivateMethod(T param) : bool
     	-{static} _StaticPrivateMethod(bool param) : bool
     	-_private_var : int
+    }
+
+
+    class Class02::ClassNested {
+    	-var : int
     }
 
 
@@ -2431,6 +2489,7 @@ The comparison takes into account the white space, indentation, etc.
     		+Class04()
     		+~Class04()
     		-_obj : Class01*
+    		-_var : T
     		-_flag : bool
     	}
     }
@@ -2449,6 +2508,32 @@ The comparison takes into account the white space, indentation, etc.
     	VALUE_0
     	VALUE_1
     	VALUE_2
+    }
+
+
+    namespace Interface {
+    	class Struct {
+    		+a : int
+    	}
+    }
+
+
+    class anon-union-1::anon-struct-1 {
+    	+x : float
+    	+y : float
+    	+z : float
+    }
+
+
+    class anon-union-1::anon-struct-2 {
+    	+phi : float
+    	+rho : float
+    	+theta : float
+    }
+
+
+    class anon-union-1 {
+    	+vec : float
     }
 
 
@@ -2520,9 +2605,14 @@ The comparison takes into account the white space, indentation, etc.
     class Class02 {
     	+AbstractPublicMethod(int param) : bool
     	-_AbstractMethod(int param) : bool
-    	-_PrivateMethod(int param) : bool
+    	-_PrivateMethod(T param) : bool
     	-{static} _StaticPrivateMethod(bool param) : bool
     	-_private_var : int
+    }
+
+
+    class Class02::ClassNested {
+    	-var : int
     }
 
 
@@ -2542,6 +2632,7 @@ The comparison takes into account the white space, indentation, etc.
     		+Class04()
     		+~Class04()
     		-_obj : Class01*
+    		-_var : T
     		-_flag : bool
     	}
     }
@@ -2560,6 +2651,32 @@ The comparison takes into account the white space, indentation, etc.
     	VALUE_0
     	VALUE_1
     	VALUE_2
+    }
+
+
+    namespace Interface {
+    	class Struct {
+    		+a : int
+    	}
+    }
+
+
+    class anon-union-1::anon-struct-1 {
+    	+x : float
+    	+y : float
+    	+z : float
+    }
+
+
+    class anon-union-1::anon-struct-2 {
+    	+phi : float
+    	+rho : float
+    	+theta : float
+    }
+
+
+    class anon-union-1 {
+    	+vec : float
     }
 
 
@@ -2921,7 +3038,7 @@ obtained using the source block described `sec-org-el-version`_.
 
     __title__ = "hpp2plantuml"
     __description__ = "Convert C++ header files to PlantUML"
-    __version__ = '0.7'
+    __version__ = '0.7.1'
     __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
     __doc__ = __description__ + " <" + __uri__ + ">"
     __author__ = "Thibault Marin"
@@ -3436,9 +3553,9 @@ content of the file is mostly following the defaults, with a few exceptions:
     # built documents.
     #
     # The short X.Y version.
-    version = u'v' + u'0.7'
+    version = u'v' + u'0.7.1'
     # The full version, including alpha/beta/rc tags.
-    release = u'v' + u'0.7'
+    release = u'v' + u'0.7.1'
 
     # The language for content autogenerated by Sphinx. Refer to documentation
     # for a list of supported languages.
@@ -3512,7 +3629,7 @@ content of the file is mostly following the defaults, with a few exceptions:
     # The name for this set of Sphinx documents.
     # "<project> v<release> documentation" by default.
     #
-    # html_title = u'hpp2plantuml ' + u'v' + u'0.7'
+    # html_title = u'hpp2plantuml ' + u'v' + u'0.7.1'
 
     # A shorter title for the navigation bar.  Default is the same as html_title.
     #

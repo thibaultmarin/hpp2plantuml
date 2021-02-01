@@ -20,6 +20,7 @@ namespace Interface {
 	private:
 		bool _flag;
 		Class01* _obj;
+		T _var;
 	};
 
 	class Class04_derived : public Class04 {
@@ -30,4 +31,22 @@ namespace Interface {
 		int _var;
 	};
 
+	struct Struct {
+		int a;
+	};
+};
+
+// Anonymous union (issue #9)
+union {
+	struct {
+		float x;
+		float y;
+		float z;
+	};
+	struct {
+		float rho;
+		float theta;
+		float phi;
+	};
+	float vec[3];
 };

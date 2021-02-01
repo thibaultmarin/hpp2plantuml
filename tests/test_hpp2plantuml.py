@@ -117,7 +117,7 @@ int & member; };""", """class Test {
 }
 """], ["""struct Test {
 protected:
-int & member; };""", """struct Test {
+int & member; };""", """class Test {
 	#member : int&
 }
 """], ["""class Test

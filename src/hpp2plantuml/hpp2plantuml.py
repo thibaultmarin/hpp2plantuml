@@ -51,10 +51,10 @@ class Container(object):
             String representation of container type (``class``, ``struct`` or
             ``enum``)
         name : str
-            Object name
+            Object name (with ``<``, ``>`` characters removed)
         """
         self._container_type = container_type
-        self._name = name
+        self._name = re.sub('[<>]', '', name)
         self._member_list = []
         self._namespace = None
 
@@ -72,7 +72,10 @@ class Container(object):
         """Initialize object from header
 
         Extract object from CppHeaderParser dictionary representing a class, a
-        struct or an enum object.  This extracts the namespace.
+        struct or an enum object.  This extracts the namespace.  Use the
+        ``parent`` field to determine is the ``namespace`` description from
+        ``CppHeaderParser`` is a parent object (e.g. class) or a proper
+        ``namespace``.
 
         Parameters
         ----------
@@ -81,7 +84,8 @@ class Container(object):
         """
         namespace = header_container.get('namespace', None)
         if namespace:
-            self._namespace = re.sub(':+$', '', namespace)
+            if not header_container.get('parent', None):
+                self._namespace = _cleanup_namespace(namespace)
         self._do_parse_members(header_container)
 
     def _do_parse_members(self, header_container):
@@ -285,14 +289,19 @@ class Class(Container):
         """Create the string representation of the class
 
         Return the class name with template and abstract properties if
-        present.  The output string follows the PlantUML syntax.
+        present.  The output string follows the PlantUML syntax.  Note that
+        ``struct`` and ``union`` types are rendered as ``classes``.
 
         Returns
         -------
         str
             String representation of class
         """
-        class_str = self._container_type + ' ' + self._name
+        if self._container_type in ['struct', 'union']:
+            container_type = 'class'
+        else:
+            container_type = self._container_type
+        class_str = container_type + ' ' + self._name
         if self._abstract:
             class_str = 'abstract ' + class_str
         if self._template_type is not None:
@@ -1172,6 +1181,27 @@ def _cleanup_type(type_str):
                   re.sub(r'[ ]+([*&])', r'\1',
                          re.sub(r'(\s)+', r'\1', type_str)))
 
+def _cleanup_namespace(ns_str):
+    """Cleanup string representing a C++ namespace
+
+    Cleanup simply consists in removing leading and trailing colon characters
+    (``:``), and ``<>`` blocks.
+
+    Parameters
+    ----------
+    ns_str : str
+        A string representing a C++ namespace
+
+    Returns
+    -------
+    str
+        The namespace string after cleanup
+    """
+    return re.sub('<([^>]+)>', r'\1',
+                  re.sub('(.+)<[^>]+>', r'\1',
+                         re.sub('^:+', '',
+                                re.sub(':+$', '', ns_str))))
+
 # %% Single line version of string
 
 
@@ -1215,7 +1245,7 @@ def expand_file_list(input_files):
     """
     file_list = []
     for input_file in input_files:
-        file_list += glob.glob(input_file)
+        file_list += glob.glob(input_file, recursive=True)
     return file_list
 
 def wrap_namespace(input_str, namespace):
@@ -1298,7 +1328,7 @@ def main():
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.7')
+                        version='%(prog)s ' + '0.7.1')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
