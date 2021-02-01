@@ -1215,7 +1215,7 @@ def expand_file_list(input_files):
     """
     file_list = []
     for input_file in input_files:
-        file_list += glob.glob(input_file)
+        file_list += glob.glob(input_file, recursive=True)
     return file_list
 
 def wrap_namespace(input_str, namespace):
