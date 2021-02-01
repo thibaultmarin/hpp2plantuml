@@ -15,7 +15,7 @@ this single org-file.
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
-: 0.7
+: 0.7.1
 
 The source code can be found on GitHub:
 https://github.com/thibaultmarin/hpp2plantuml.
@@ -231,10 +231,10 @@ class Container(object):
             String representation of container type (``class``, ``struct`` or
             ``enum``)
         name : str
-            Object name
+            Object name (with ``<``, ``>`` characters removed)
         """
         self._container_type = container_type
-        self._name = name
+        self._name = re.sub('[<>]', '', name)
         self._member_list = []
         self._namespace = None
 
@@ -252,7 +252,10 @@ class Container(object):
         """Initialize object from header
 
         Extract object from CppHeaderParser dictionary representing a class, a
-        struct or an enum object.  This extracts the namespace.
+        struct or an enum object.  This extracts the namespace.  Use the
+        ``parent`` field to determine is the ``namespace`` description from
+        ``CppHeaderParser`` is a parent object (e.g. class) or a proper
+        ``namespace``.
 
         Parameters
         ----------
@@ -261,7 +264,8 @@ class Container(object):
         """
         namespace = header_container.get('namespace', None)
         if namespace:
-            self._namespace = re.sub(':+$', '', namespace)
+            if not header_container.get('parent', None):
+                self._namespace = _cleanup_namespace(namespace)
         self._do_parse_members(header_container)
 
     def _do_parse_members(self, header_container):
@@ -484,14 +488,19 @@ class Class(Container):
         """Create the string representation of the class
 
         Return the class name with template and abstract properties if
-        present.  The output string follows the PlantUML syntax.
+        present.  The output string follows the PlantUML syntax.  Note that
+        ``struct`` and ``union`` types are rendered as ``classes``.
 
         Returns
         -------
         str
             String representation of class
         """
-        class_str = self._container_type + ' ' + self._name
+        if self._container_type in ['struct', 'union']:
+            container_type = 'class'
+        else:
+            container_type = self._container_type
+        class_str = container_type + ' ' + self._name
         if self._abstract:
             class_str = 'abstract ' + class_str
         if self._template_type is not None:
@@ -1566,6 +1575,27 @@ def _cleanup_type(type_str):
     return re.sub('\s*([<>])\s*', r'\1',
                   re.sub(r'[ ]+([*&])', r'\1',
                          re.sub(r'(\s)+', r'\1', type_str)))
+
+def _cleanup_namespace(ns_str):
+    """Cleanup string representing a C++ namespace
+
+    Cleanup simply consists in removing leading and trailing colon characters
+    (``:``), and ``<>`` blocks.
+
+    Parameters
+    ----------
+    ns_str : str
+        A string representing a C++ namespace
+
+    Returns
+    -------
+    str
+        The namespace string after cleanup
+    """
+    return re.sub('<([^>]+)>', r'\1',
+                  re.sub('(.+)<[^>]+>', r'\1',
+                         re.sub('^:+', '',
+                                re.sub(':+$', '', ns_str))))
 #+END_SRC
 
 The ~_cleanup_single_line~ function transforms a multiline input string into a
@@ -1626,7 +1656,7 @@ def expand_file_list(input_files):
     """
     file_list = []
     for input_file in input_files:
-        file_list += glob.glob(input_file)
+        file_list += glob.glob(input_file, recursive=True)
     return file_list
 #+END_SRC
 
@@ -2123,7 +2153,7 @@ Table{{{tt}}}[[tbl-unittest-class]].  It includes templates and abstract classes
 | C++                                                                   | plantuml                                                                             |
 |-----------------------------------------------------------------------+--------------------------------------------------------------------------------------|
 | "class Test {\nprotected:\nint & member; };"                          | "class Test {\n\t#member : int&\n}\n"                                                |
-| "struct Test {\nprotected:\nint & member; };"                         | "struct Test {\n\t#member : int&\n}\n"                                               |
+| "struct Test {\nprotected:\nint & member; };"                         | "class Test {\n\t#member : int&\n}\n"                                                |
 | "class Test\n{\npublic:\nvirtual int func() = 0; };"                  | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                             |
 | "template <typename T> class Test{\nT* func(T& arg); };"              | "class Test <template<typename T>> {\n\t-func(T& arg) : T*\n}\n"                     |
 | "template <typename T> class Test{\nvirtual T* func(T& arg)=0; };"    | "abstract class Test <template<typename T>> {\n\t-{abstract} func(T& arg) : T*\n}\n" |
@@ -2266,8 +2296,12 @@ class Class02 : public Class01 {
 public:
 	bool AbstractPublicMethod(int param) override;
 private:
+	class ClassNested {
+		int var;
+	};
 	int _private_var;
-	bool _PrivateMethod(int param);
+	template <typename T>
+	bool _PrivateMethod(T param);
 	static bool _StaticPrivateMethod(bool param);
 	bool _AbstractMethod(int param) override;
 };
@@ -2297,6 +2331,7 @@ namespace Interface {
 	private:
 		bool _flag;
 		Class01* _obj;
+		T _var;
 	};
 
 	class Class04_derived : public Class04 {
@@ -2307,6 +2342,24 @@ namespace Interface {
 		int _var;
 	};
 
+	struct Struct {
+		int a;
+	};
+};
+
+// Anonymous union (issue #9)
+union {
+	struct {
+		float x;
+		float y;
+		float z;
+	};
+	struct {
+		float rho;
+		float theta;
+		float phi;
+	};
+	float vec[3];
 };
 #+END_SRC
 
@@ -2346,9 +2399,14 @@ abstract class Class01 {
 class Class02 {
 	+AbstractPublicMethod(int param) : bool
 	-_AbstractMethod(int param) : bool
-	-_PrivateMethod(int param) : bool
+	-_PrivateMethod(T param) : bool
 	-{static} _StaticPrivateMethod(bool param) : bool
 	-_private_var : int
+}
+
+
+class Class02::ClassNested {
+	-var : int
 }
 
 
@@ -2368,6 +2426,7 @@ namespace Interface {
 		+Class04()
 		+~Class04()
 		-_obj : Class01*
+		-_var : T
 		-_flag : bool
 	}
 }
@@ -2386,6 +2445,32 @@ enum Enum01 {
 	VALUE_0
 	VALUE_1
 	VALUE_2
+}
+
+
+namespace Interface {
+	class Struct {
+		+a : int
+	}
+}
+
+
+class anon-union-1::anon-struct-1 {
+	+x : float
+	+y : float
+	+z : float
+}
+
+
+class anon-union-1::anon-struct-2 {
+	+phi : float
+	+rho : float
+	+theta : float
+}
+
+
+class anon-union-1 {
+	+vec : float
 }
 
 
@@ -2456,9 +2541,14 @@ abstract class Class01 {
 class Class02 {
 	+AbstractPublicMethod(int param) : bool
 	-_AbstractMethod(int param) : bool
-	-_PrivateMethod(int param) : bool
+	-_PrivateMethod(T param) : bool
 	-{static} _StaticPrivateMethod(bool param) : bool
 	-_private_var : int
+}
+
+
+class Class02::ClassNested {
+	-var : int
 }
 
 
@@ -2478,6 +2568,7 @@ namespace Interface {
 		+Class04()
 		+~Class04()
 		-_obj : Class01*
+		-_var : T
 		-_flag : bool
 	}
 }
@@ -2496,6 +2587,32 @@ enum Enum01 {
 	VALUE_0
 	VALUE_1
 	VALUE_2
+}
+
+
+namespace Interface {
+	class Struct {
+		+a : int
+	}
+}
+
+
+class anon-union-1::anon-struct-1 {
+	+x : float
+	+y : float
+	+z : float
+}
+
+
+class anon-union-1::anon-struct-2 {
+	+phi : float
+	+rho : float
+	+theta : float
+}
+
+
+class anon-union-1 {
+	+vec : float
 }
 
 
