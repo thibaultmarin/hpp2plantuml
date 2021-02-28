@@ -38,7 +38,7 @@ class TestContainer:
         c_type = "container_type"
         c_name = "container_name"
         c_obj = hpp2plantuml.hpp2plantuml.Container(c_type, c_name)
-        nt.assert_equal(c_obj.get_name(), c_name)
+        nt.assert_equal(c_obj.name, c_name)
         nt.assert_equal(c_obj.render(), 'container_type container_name {\n}\n')
 
     def test_comparison_keys(self):
@@ -55,7 +55,7 @@ class TestContainer:
         c_obj_list.sort(key=lambda obj: obj.comparison_keys())
 
         for i in range(len(c_list)):
-            nt.assert_equal(c_obj_list[i].get_name(),
+            nt.assert_equal(c_obj_list[i].name,
                             c_list[ref_sort_idx[i]][1])
 
 test_list_classvar=[["""class Test {
@@ -137,10 +137,8 @@ virtual T* func(T& arg)=0; };""", """abstract class Test <template<typename T>> 
 """], ["""namespace Interface {
 class Test {
 protected:
-int & member; };};""", """namespace Interface {
-	class Test {
-		#member : int&
-	}
+int & member; };};""", """class Test {
+	#member : int&
 }
 """]]
 # %% Test classes
@@ -194,20 +192,18 @@ class TestEnum:
                                                                   input_str))
 
 test_list_link=[["""class A{};
-class B : A{};""", """A <@-- B
+class B : A{};""", """.A <@-- .B
 """], ["""class A{};
-class B : public A{};""", """A <@-- B
+class B : public A{};""", """.A <@-- .B
 """], ["""class B{};
-class A{B obj;};""", """A *-- B
+class A{B obj;};""", """.A *-- .B
 """], ["""class B{};
-class A{B* obj;};""", """A o-- B
+class A{B* obj;};""", """.A o-- .B
 """], ["""class B{};
-class A{B * obj_ptr; B* ptr;};""", """A \"2\" o-- B
+class A{B * obj_ptr; B* ptr;};""", """.A \"2\" o-- .B
 """], ["""class A{};
-class B{void Method(A* obj);};""", """A <.. B
-"""], ["namespace T {class A{}; class B: A{};};", """namespace T {
-	A <@-- B
-}
+class B{void Method(A* obj);};""", """.A <.. .B
+"""], ["namespace T {class A{}; class B: A{};};", """T.A <@-- T.B
 """], ["""namespace T {
 class A{};};
 class B{T::A* _obj;};""", """.B o-- T.A

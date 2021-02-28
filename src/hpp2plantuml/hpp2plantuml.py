@@ -22,17 +22,18 @@ LINK_TYPE_MAP = {
     'inherit': '<|--',
     'aggregation': 'o--',
     'composition': '*--',
-    'dependency': '<..'
+    'dependency': '<..',
+    'nesting': '+--'
 }
 
 # Association between object names and objects
 # - The first element is the object type name in the CppHeader object
 # - The second element is the iterator used to loop over objects
 # - The third element is a function returning the corresponding internal object
-CONTAINER_TYPE_MAP = [
-    ['classes', lambda objs: objs.items(), lambda obj: Class(obj)],
-    ['enums', lambda objs: objs, lambda obj: Enum(obj)]
-]
+CONTAINER_TYPE_MAP = {
+    'classes': [lambda objs: objs.items(), lambda obj: Class(obj)],
+    'enums': [lambda objs: objs, lambda obj: Enum(obj)]
+}
 
 # %% Base classes
 
@@ -54,11 +55,13 @@ class Container(object):
             Object name (with ``<``, ``>`` characters removed)
         """
         self._container_type = container_type
-        self._name = re.sub('[<>]', '', name)
+        self._name = re.sub('[<>]', '', re.sub('-', '_', name))
         self._member_list = []
-        self._namespace = None
+        self._namespace = ''
+        self._parent = None
 
-    def get_name(self):
+    @property
+    def name(self):
         """Name property accessor
 
         Returns
@@ -82,10 +85,19 @@ class Container(object):
         header_container : CppClass or CppEnum
             Parsed header for container
         """
-        namespace = header_container.get('namespace', None)
+        namespace = header_container.get('namespace', '')
         if namespace:
-            if not header_container.get('parent', None):
+            parent = header_container.get('parent', None)
+            # Presence of namespace and parent fields indicates a nested class
+            if not parent:
                 self._namespace = _cleanup_namespace(namespace)
+            else:
+                #self._parent = re.sub('[<>]', '', parent['name'])
+                self._parent = '::'.join(self._name.split('::')[:-1])
+                p = parent
+                while p.get('parent') is not None:
+                    p = p.get('parent', None)
+                self._namespace = p['namespace']
         self._do_parse_members(header_container)
 
     def _do_parse_members(self, header_container):
@@ -114,8 +126,6 @@ class Container(object):
         for member in self._member_list:
             container_str += '\t' + member.render() + '\n'
         container_str += '}\n'
-        if self._namespace is not None:
-            return wrap_namespace(container_str, self._namespace)
         return container_str
 
     def comparison_keys(self):
@@ -221,7 +231,7 @@ class Class(Container):
 
         Parameters
         ----------
-        header_class : list (str, CppClass)
+        header_class : tuple(str, CppClass)
             Parsed header for class object (two-element list where the first
             element is the class name and the second element is a CppClass
             object)
@@ -485,7 +495,7 @@ class Enum(Container):
     This class defines a simple object inherited from the base `Container`
     class.  It simply lists enumerated values.
     """
-    def __init__(self, header_enum):
+    def __init__(self, header_enum, parent=None):
         """Constructor
 
         Parameters
@@ -495,6 +505,8 @@ class Enum(Container):
         """
         super().__init__('enum', header_enum.get('name', 'empty'))
         self.parse_members(header_enum)
+        if parent:
+            self._parent = parent
 
     def _do_parse_members(self, header_enum):
         """Extract enum values from header
@@ -536,6 +548,39 @@ class EnumValue(ContainerMember):
         """
         return self._name
 
+# %% Class object
+
+
+class Namespace(list):
+    """Representation of C++ namespace
+
+    This class lists other containers or namespaces and wraps the rendered
+    output in a ``namespace`` block.
+    """
+    def __init__(self, name, *args):
+        """Constructor
+
+        Parameters
+        ----------
+        name : str
+            Namespace name
+        """
+        self._name = name
+        super().__init__(*args)
+
+    def render(self):
+        """Render namespace content
+
+        Render the elements and wrap the result in a ``namespace`` block
+
+        Returns
+        -------
+        str
+            String representation of namespace in PlantUML syntax
+        """
+        return wrap_namespace('\n'.join([c.render()
+                                         for c in self]), self._name)
+
 # %% Class connections
 
 
@@ -546,24 +591,23 @@ class ClassRelationship(object):
     This includes a parent/child pair and a relationship type (e.g. inheritance
     or aggregation).
     """
-    def __init__(self, link_type, c_parent, c_child, flag_use_namespace=False):
+    def __init__(self, link_type, c_parent, c_child):
         """Constructor
 
         Parameters
         ----------
         link_type : str
             Relationship type: ``inherit`` or ``aggregation``
-        c_parent : str
-            Name of parent class
-        c_child : str
-            Name of child class
+        c_parent : Container
+            Parent container
+        c_child : Container
+            Child container
         """
-        self._parent = c_parent.get_name()
-        self._child = c_child.get_name()
+        self._parent = c_parent.name
+        self._child = c_child.name
         self._link_type = link_type
-        self._parent_namespace = c_parent._namespace or None
-        self._child_namespace = c_child._namespace or None
-        self._flag_use_namespace = flag_use_namespace
+        self._parent_namespace = c_parent._namespace or ''
+        self._child_namespace = c_child._namespace or ''
 
     def comparison_keys(self):
         """Order comparison key between `ClassRelationship` objects
@@ -578,7 +622,7 @@ class ClassRelationship(object):
         """
         return self._parent, self._child, self._link_type
 
-    def _render_name(self, class_name, class_namespace, flag_use_namespace):
+    def _render_name(self, class_name, class_namespace):
         """Render class name with namespace prefix if necessary
 
         Parameters
@@ -587,22 +631,13 @@ class ClassRelationship(object):
            Name of the class
         class_namespace : str
             Namespace or None if the class is defined in the default namespace
-        flag_use_namespace : bool
-            When False, do not use the namespace
 
         Returns
         -------
         str
             Class name with appropriate prefix for use with link rendering
         """
-        if not flag_use_namespace:
-            return class_name
-
-        if class_namespace is None:
-            prefix = '.'
-        else:
-            prefix = class_namespace + '.'
-        return prefix + class_name
+        return get_namespace_link_name(class_namespace) + '.' + class_name
 
     def render(self):
         """Render class relationship to string
@@ -619,26 +654,14 @@ class ClassRelationship(object):
         """
         link_str = ''
 
-        # Wrap the link in namespace block (if both parent and child are in the
-        # same namespace)
-        namespace_wrap = None
-        if self._parent_namespace == self._child_namespace and \
-           self._parent_namespace is not None:
-            namespace_wrap = self._parent_namespace
-
         # Prepend the namespace to the class name
-        flag_render_namespace = self._flag_use_namespace and not namespace_wrap
-        parent_str = self._render_name(self._parent, self._parent_namespace,
-                                       flag_render_namespace)
-        child_str = self._render_name(self._child, self._child_namespace,
-                                      flag_render_namespace)
+        parent_str = self._render_name(self._parent, self._parent_namespace)
+        child_str = self._render_name(self._child, self._child_namespace)
 
         # Link string
-        link_str += parent_str + ' ' + self._render_link_type() + \
-                    ' ' + child_str + '\n'
+        link_str += (parent_str + ' ' + self._render_link_type() + ' ' +
+                     child_str + '\n')
 
-        if namespace_wrap is not None:
-            return wrap_namespace(link_str, namespace_wrap)
         return link_str
 
     def _render_link_type(self):
@@ -747,6 +770,30 @@ class ClassDependencyRelationship(ClassRelationship):
         """
         super().__init__('dependency', c_parent, c_child, **kwargs)
 
+# %% Nested class
+
+
+class ClassNestingRelationship(ClassRelationship):
+    """Nesting relationship
+
+    Dependencies occur when member methods depend on an object of another class
+    in the diagram.
+    """
+    def __init__(self, c_parent, c_child, **kwargs):
+        """Constructor
+
+        Parameters
+        ----------
+        c_parent : str
+            Class corresponding to the type of the member variable in the
+            nesting relationship
+        c_child : str
+            Child (or client) class of the dependency relationship
+        kwargs : dict
+            Additional parameters passed to parent class
+        """
+        super().__init__('nesting', c_parent, c_child, **kwargs)
+
 # %% Diagram class
 
 
@@ -789,6 +836,7 @@ class Diagram(object):
         self._inheritance_list = []
         self._aggregation_list = []
         self._dependency_list = []
+        self._nesting_list = []
 
     def _sort_list(input_list):
         """Sort list using `ClassRelationship` comparison
@@ -814,24 +862,25 @@ class Diagram(object):
         Diagram._sort_list(self._inheritance_list)
         Diagram._sort_list(self._aggregation_list)
         Diagram._sort_list(self._dependency_list)
+        Diagram._sort_list(self._nesting_list)
 
-    def _build_helper(self, input, build_from='string', flag_build_lists=True,
+    def _build_helper(self, data_in, build_from='string', flag_build_lists=True,
                       flag_reset=False):
         """Helper function to initialize a `Diagram` object from parsed headers
 
         Parameters
         ----------
-        input : CppHeader or str or list(CppHeader) or list(str)
+        data_in : CppHeader or str or list(CppHeader) or list(str)
             Input of arbitrary type.  The processing depends on the
             ``build_from`` parameter
         build_from : str
-            Determines the type of the ``input`` variable:
+            Determines the type of the ``data_in`` variable:
 
-            * ``string``: ``input`` is a string containing C++ header code
-            * ``file``: ``input`` is a filename to parse
-            * ``string_list``: ``input`` is a list of strings containing C++
+            * ``string``: ``data_in`` is a string containing C++ header code
+            * ``file``: ``data_in`` is a filename to parse
+            * ``string_list``: ``data_in`` is a list of strings containing C++
               header code
-            * ``file_list``: ``input`` is a list of filenames to parse
+            * ``file_list``: ``data_in`` is a list of filenames to parse
 
         flag_build_lists : bool
             When True, relationships lists are built and the objects in the
@@ -844,10 +893,10 @@ class Diagram(object):
         if flag_reset:
             self.clear()
         if build_from in ('string', 'file'):
-            self.parse_objects(input, build_from)
+            self.parse_objects(data_in, build_from)
         elif build_from in ('string_list', 'file_list'):
             build_from_single = re.sub('_list$', '', build_from)
-            for single_input in input:
+            for single_input in data_in:
                 self.parse_objects(single_input, build_from_single)
         if flag_build_lists:
             self.build_relationship_lists()
@@ -938,6 +987,7 @@ class Diagram(object):
         """
         self.build_inheritance_list()
         self.build_aggregation_list()
+        self.build_nesting_list()
         if self._flag_dep:
             self.build_dependency_list()
 
@@ -953,17 +1003,32 @@ class Diagram(object):
             A string containing C++ header code or a filename with C++ header
             code
         arg_type : str
-            It set to ``string``, ``header_file`` is considered to be a string,
+            If set to ``string``, ``header_file`` is considered to be a string,
             otherwise, it is assumed to be a filename
         """
         # Parse header file
         parsed_header = CppHeaderParser.CppHeader(header_file,
                                                   argType=arg_type)
-        for container_type, container_iterator, \
-            container_handler in CONTAINER_TYPE_MAP:
+        for container_type, (container_iterator,
+                             container_handler) in CONTAINER_TYPE_MAP.items():
             objects = parsed_header.__getattribute__(container_type)
             for obj in container_iterator(objects):
-                self._objects.append(container_handler(obj))
+                # Parse container
+                obj_c = container_handler(obj)
+                self._objects.append(obj_c)
+                # Look for nested enums
+                # Find value from iterator (may be a tuple)
+                if isinstance(obj, tuple) and len(obj) == 2:
+                    obj_n = obj[-1]
+                else:
+                    obj_n = obj
+                if 'enums' in obj_n:
+                    for m in MEMBER_PROP_MAP.keys():
+                        for enum in obj_n['enums'][m]:
+                            enum_c = Enum(enum, parent=obj_c.name)
+                            # Adjust name to reflect nesting
+                            enum_c._name = obj_c.name + '::' + enum_c._name
+                            self._objects.append(enum_c)
 
     def _make_class_list(self):
         """Build list of classes
@@ -974,8 +1039,24 @@ class Diagram(object):
             Each entry is a dictionary with keys ``name`` (class name) and
             ``obj`` the instance of the `Class` class
         """
-        return [{'name': obj.get_name(), 'obj': obj}
-                for obj in self._objects if isinstance(obj, Class)]
+        return [{'name': obj.name, 'obj': obj}
+                for obj in self._objects if isinstance(obj, (Class, Enum))]
+
+    def _get_class_list(self):
+        """Build list of classes in diagram
+
+        Returns
+        -------
+        list
+            Class object list (returned by :func:`_make_class_list`)
+        list
+            Class names
+        bool
+            True when at least one container is a namespace
+        """
+        class_list_obj = self._make_class_list()
+        class_list = [c['name'] for c in class_list_obj]
+        return class_list_obj, class_list
 
     def build_inheritance_list(self):
         """Build list of inheritance between objects
@@ -990,15 +1071,13 @@ class Diagram(object):
         """
         self._inheritance_list = []
         # Build list of classes in diagram
-        class_list_obj = self._make_class_list()
-        class_list = [c['name'] for c in class_list_obj]
-        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+        class_list_obj, class_list = self._get_class_list()
 
         # Create relationships
 
         # Inheritance
         for obj in self._objects:
-            obj_name = obj.get_name()
+            obj_name = obj.name
             if isinstance(obj, Class):
                 for parent in obj.build_inheritance_list():
                     if parent in class_list:
@@ -1006,8 +1085,7 @@ class Diagram(object):
                             class_list.index(parent)]['obj']
                         self._inheritance_list.append(
                             ClassInheritanceRelationship(
-                                parent_obj, obj,
-                                flag_use_namespace=flag_use_namespace))
+                                parent_obj, obj))
 
     def build_aggregation_list(self):
         """Build list of aggregation relationships
@@ -1022,16 +1100,13 @@ class Diagram(object):
         for each relationships, using the calculated count.
         """
         self._aggregation_list = []
-        # Build list of classes in diagram
-        # Build list of classes in diagram
-        class_list_obj = self._make_class_list()
-        class_list = [c['name'] for c in class_list_obj]
-        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+         # Build list of classes in diagram
+        class_list_obj, class_list = self._get_class_list()
 
         # Build member type list
         variable_type_list = {}
         for obj in self._objects:
-            obj_name = obj.get_name()
+            obj_name = obj.name
             if isinstance(obj, Class):
                 variable_type_list[obj_name] = obj.build_variable_type_list()
         # Create aggregation links
@@ -1057,8 +1132,7 @@ class Diagram(object):
                 self._aggregation_list.append(
                     ClassAggregationRelationship(
                         obj_class_obj, comp_parent_obj, comp_count,
-                        rel_type=rel_type,
-                        flag_use_namespace=flag_use_namespace))
+                        rel_type=rel_type))
 
     def build_dependency_list(self):
         """Build list of dependency between objects
@@ -1072,17 +1146,14 @@ class Diagram(object):
         """
 
         self._dependency_list = []
-        # Build list of classes in diagram
-        class_list_obj = self._make_class_list()
-        class_list = [c['name'] for c in class_list_obj]
-        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+        class_list_obj, class_list = self._get_class_list()
 
         # Create relationships
 
         # Add all objects name to list
         objects_name = []
         for obj in self._objects:
-            objects_name.append(obj.get_name())
+            objects_name.append(obj.name)
 
         # Dependency
         for obj in self._objects:
@@ -1099,14 +1170,31 @@ class Diagram(object):
                                          for o in objects_name].index(True)
                             except ValueError:
                                 pass
-                            if index != ValueError and \
-                               method[0] != obj.get_name():
+                            if index != ValueError and method[0] != obj.name:
                                 depend_obj = self._objects[index]
 
                                 self._dependency_list.append(
                                     ClassDependencyRelationship(
-                                        depend_obj, obj,
-                                        flag_use_namespace=flag_use_namespace))
+                                        depend_obj, obj))
+
+    def build_nesting_list(self):
+        """Build list of nested objects
+
+        """
+        self._nesting_list = []
+        # Build list of classes in diagram
+        class_list_obj, class_list = self._get_class_list()
+
+        for obj in self._objects:
+            obj_name = obj.name
+            if isinstance(obj, (Class, Enum)):
+                parent = obj._parent
+                if parent and parent in class_list:
+                    parent_obj = class_list_obj[
+                        class_list.index(parent)]['obj']
+                    self._nesting_list.append(
+                        ClassNestingRelationship(
+                            parent_obj, obj))
 
     def _augment_comp(self, c_dict, c_parent, c_child, rel_type='aggregation'):
         """Increment the aggregation reference count
@@ -1152,10 +1240,39 @@ class Diagram(object):
             object, including objects and object relationships
         """
         template = self._env.get_template(self._template_file)
-        return template.render(objects=self._objects,
+        # List namespaces
+        ns_list = []
+        for obj in self._objects:
+            if obj._namespace and obj._namespace not in ns_list:
+                ns_list.append(obj._namespace)
+        # Ensure nested namespaces are processed first
+        ns_list = sorted(ns_list, key=lambda ns: len(ns.split('::')),
+                         reverse=True)
+        # Create namespace objects (flat map)
+        ns_obj_map = {ns: Namespace(ns) for ns in ns_list}
+        # Build list of objects
+        objects_out = []
+        # 1. Place objects in namespace container or in output list
+        for obj in self._objects:
+            if obj._namespace:
+                ns_obj_map[obj._namespace].append(obj)
+            else:
+                objects_out.append(obj)
+        # 2. Add namespaces: collapse nested namespaces and add top level
+        # namespaces to output list
+        for ns in ns_list:
+            ns_name_parts = ns.split('::')
+            if len(ns_name_parts) > 1:
+                ns_parent = '::'.join(ns_name_parts[:-1])
+                ns_obj_map[ns_parent].append(ns_obj_map[ns])
+            else:
+                objects_out.append(ns_obj_map[ns])
+        # Render
+        return template.render(objects=objects_out,
                                inheritance_list=self._inheritance_list,
                                aggregation_list=self._aggregation_list,
                                dependency_list=self._dependency_list,
+                               nesting_list=self._nesting_list,
                                flag_dep=self._flag_dep)
 
 # %% Cleanup object type string
@@ -1184,8 +1301,8 @@ def _cleanup_type(type_str):
 def _cleanup_namespace(ns_str):
     """Cleanup string representing a C++ namespace
 
-    Cleanup simply consists in removing leading and trailing colon characters
-    (``:``), and ``<>`` blocks.
+    Cleanup simply consists in removing ``<>`` blocks and trailing ``:``
+    characters.
 
     Parameters
     ----------
@@ -1197,10 +1314,9 @@ def _cleanup_namespace(ns_str):
     str
         The namespace string after cleanup
     """
-    return re.sub('<([^>]+)>', r'\1',
-                  re.sub('(.+)<[^>]+>', r'\1',
-                         re.sub('^:+', '',
-                                re.sub(':+$', '', ns_str))))
+    return re.sub(':+$', '',
+                  re.sub('<([^>]+)>', r'\1',
+                         re.sub('(.+)<[^>]+>', r'\1', ns_str)))
 
 # %% Single line version of string
 
@@ -1264,9 +1380,31 @@ def wrap_namespace(input_str, namespace):
         ``input_str`` wrapped in ``namespace`` block
     """
     return 'namespace {} {{\n'.format(namespace) + \
-        '\n'.join([re.sub('^', '\t', line)
+        '\n'.join([re.sub('^', '\t', line) if line else line
                    for line in input_str.splitlines()]) + \
         '\n}\n'
+
+def get_namespace_link_name(namespace):
+    """Generate namespace string for link
+
+    Parameters
+    ----------
+    namespace : str
+        Namespace name (in the form ``nested::ns``)
+
+    Returns
+    -------
+    str
+        The namespace name formatted for use in links
+        (e.g. ``nested.nested::ns``)
+    """
+    if not namespace:
+        return ''
+    ns_list = namespace.split('::')
+    ns_list_out = [ns_list[0], ]
+    for ni, ns in enumerate(ns_list[1:]):
+        ns_list_out.append('{}::{}'.format(ns_list_out[ni - 1], ns))
+    return '.'.join(ns_list_out)
 
 # %% Main function
 
@@ -1328,7 +1466,7 @@ def main():
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.7.1')
+                        version='%(prog)s ' + '0.8.0')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,

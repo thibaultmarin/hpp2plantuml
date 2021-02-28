@@ -43,26 +43,6 @@ class Class03 <template<typename T>> {
 }
 
 
-namespace Interface {
-	class Class04 {
-		+Class04()
-		+~Class04()
-		-_obj : Class01*
-		-_var : T
-		-_flag : bool
-	}
-}
-
-
-namespace Interface {
-	class Class04_derived {
-		+Class04_derived()
-		+~Class04_derived()
-		-_var : int
-	}
-}
-
-
 enum Enum01 {
 	VALUE_0
 	VALUE_1
@@ -70,29 +50,56 @@ enum Enum01 {
 }
 
 
-namespace Interface {
-	class Struct {
-		+a : int
-	}
-}
-
-
-class anon-union-1::anon-struct-1 {
+class anon_union_1::anon_struct_1 {
 	+x : float
 	+y : float
 	+z : float
 }
 
 
-class anon-union-1::anon-struct-2 {
+class anon_union_1::anon_struct_2 {
 	+phi : float
 	+rho : float
 	+theta : float
 }
 
 
-class anon-union-1 {
+class anon_union_1 {
 	+vec : float
+}
+
+
+namespace Interface {
+	class Class04 {
+		+Class04()
+		+~Class04()
+		-_obj : Class01*
+		-_val : Enum01
+		-_var : T
+		-_flag : bool
+	}
+
+	class Class04_derived {
+		+Class04_derived()
+		+~Class04_derived()
+		-_var : int
+	}
+
+	enum Enum {
+		A
+		B
+	}
+
+	class Struct {
+		+a : int
+	}
+
+	namespace Interface::NestedNamespace {
+		class Class04_ns {
+			#_e : Enum
+			#_s : Struct
+		}
+	}
 }
 
 
@@ -104,9 +111,10 @@ class anon-union-1 {
 .Class01 <|-- .Class02
 
 
-namespace Interface {
-	Class04 <|-- Class04_derived
-}
+Interface.Class04 <|-- Interface.Class04_derived
+
+
+Interface.Class04_derived <|-- Interface.Interface::NestedNamespace.Class04_ns
 
 
 
@@ -123,6 +131,15 @@ namespace Interface {
 Interface.Class04 o-- .Class01
 
 
+Interface.Class04 *-- .Enum01
+
+
+Interface.Interface::NestedNamespace.Class04_ns *-- Interface.Enum
+
+
+Interface.Interface::NestedNamespace.Class04_ns *-- Interface.Struct
+
+
 
 
 
@@ -131,6 +148,20 @@ Interface.Class04 o-- .Class01
 
 Interface.Class04 <.. .Class03
 
+
+
+
+
+
+/' Nested objects '/
+
+.Class02 +-- .Class02::ClassNested
+
+
+.anon_union_1 +-- .anon_union_1::anon_struct_1
+
+
+.anon_union_1 +-- .anon_union_1::anon_struct_2
 
 
 

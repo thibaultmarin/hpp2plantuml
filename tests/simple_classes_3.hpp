@@ -21,6 +21,7 @@ namespace Interface {
 		bool _flag;
 		Class01* _obj;
 		T _var;
+		Enum01 _val;
 	};
 
 	class Class04_derived : public Class04 {
@@ -33,6 +34,15 @@ namespace Interface {
 
 	struct Struct {
 		int a;
+	};
+	enum Enum { A, B };
+
+	namespace NestedNamespace {
+		class Class04_ns : private Class04_derived {
+		protected:
+			Struct _s;
+			Enum _e;
+		};
 	};
 };
 
