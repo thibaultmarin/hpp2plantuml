@@ -33,4 +33,11 @@
 {% endblock %}
 {% endif %}
 
+{% block nested %}
+/' Nested objects '/
+{% for link in nesting_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+
 @enduml
