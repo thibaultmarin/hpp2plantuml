@@ -1241,10 +1241,19 @@ class Diagram(object):
         """
         template = self._env.get_template(self._template_file)
         # List namespaces
-        ns_list = []
+        ns_list_in = []
         for obj in self._objects:
-            if obj._namespace and obj._namespace not in ns_list:
-                ns_list.append(obj._namespace)
+            if obj._namespace and obj._namespace not in ns_list_in:
+                ns_list_in.append(obj._namespace)
+        # Add empty namespaces
+        ns_list = []
+        for ns in ns_list_in:
+            ns_list.append(ns)
+            ns_split = ns.split('::')
+            for ni in range(1, len(ns_split)):
+                ns_pre = '::'.join(ns_split[:ni])
+                if ns_pre not in ns_list_in:
+                    ns_list.append(ns_pre)
         # Ensure nested namespaces are processed first
         ns_list = sorted(ns_list, key=lambda ns: len(ns.split('::')),
                          reverse=True)
@@ -1466,7 +1475,7 @@ def main():
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.8.0')
+                        version='%(prog)s ' + '0.8.1')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,

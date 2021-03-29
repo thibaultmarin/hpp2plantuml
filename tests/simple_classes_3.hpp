@@ -60,3 +60,8 @@ union {
 	};
 	float vec[3];
 };
+
+// Empty parent namespace (issue #13)
+namespace first_ns::second_ns{
+	class A{};
+}

@@ -69,6 +69,14 @@ class anon_union_1 {
 }
 
 
+namespace first_ns {
+	namespace first_ns::second_ns {
+		class A {
+		}
+	}
+}
+
+
 namespace Interface {
 	class Class04 {
 		+Class04()

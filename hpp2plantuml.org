@@ -2,6 +2,7 @@
 #+DATE: <2016-11-30 Wed>
 #+OPTIONS: todo:nil ^:nil
 #+TODO: TODO REVIEW | DONE DEFERRED ABANDONED
+#+STARTUP: overview hideblocks
 #+MACRO: tt \nbsp{}
 #+PROPERTY: header-args:conf+ :eval never
 #+PROPERTY: header-args:c+++ :eval never
@@ -15,7 +16,7 @@ this single org-file.
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
-: 0.8.0
+: 0.8.1
 
 The source code can be found on GitHub:
 https://github.com/thibaultmarin/hpp2plantuml.
@@ -1640,10 +1641,19 @@ class Diagram(object):
         """
         template = self._env.get_template(self._template_file)
         # List namespaces
-        ns_list = []
+        ns_list_in = []
         for obj in self._objects:
-            if obj._namespace and obj._namespace not in ns_list:
-                ns_list.append(obj._namespace)
+            if obj._namespace and obj._namespace not in ns_list_in:
+                ns_list_in.append(obj._namespace)
+        # Add empty namespaces
+        ns_list = []
+        for ns in ns_list_in:
+            ns_list.append(ns)
+            ns_split = ns.split('::')
+            for ni in range(1, len(ns_split)):
+                ns_pre = '::'.join(ns_split[:ni])
+                if ns_pre not in ns_list_in:
+                    ns_list.append(ns_pre)
         # Ensure nested namespaces are processed first
         ns_list = sorted(ns_list, key=lambda ns: len(ns.split('::')),
                          reverse=True)
@@ -2533,6 +2543,11 @@ union {
 	};
 	float vec[3];
 };
+
+// Empty parent namespace (issue #13)
+namespace first_ns::second_ns{
+	class A{};
+}
 #+END_SRC
 
 
@@ -2614,6 +2629,14 @@ class anon_union_1::anon_struct_2 {
 
 class anon_union_1 {
 	+vec : float
+}
+
+
+namespace first_ns {
+	namespace first_ns::second_ns {
+		class A {
+		}
+	}
 }
 
 
@@ -2787,6 +2810,14 @@ class anon_union_1::anon_struct_2 {
 
 class anon_union_1 {
 	+vec : float
+}
+
+
+namespace first_ns {
+	namespace first_ns::second_ns {
+		class A {
+		}
+	}
 }
 
 
