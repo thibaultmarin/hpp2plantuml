@@ -106,13 +106,13 @@ documentation for more details.
 
 __title__ = "hpp2plantuml"
 __description__ = "Convert C++ header files to PlantUML"
-__version__ = '0.8.1'
+__version__ = '0.8.2'
 __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
 __doc__ = __description__ + " <" + __uri__ + ">"
 __author__ = "Thibault Marin"
 __email__ = "thibault.marin@gmx.com"
 __license__ = "MIT"
-__copyright__ = "Copyright (c) 2016 Thibault Marin"
+__copyright__ = "Copyright (c) 2021 Thibault Marin"
 
 from .hpp2plantuml import CreatePlantUMLFile, Diagram
 

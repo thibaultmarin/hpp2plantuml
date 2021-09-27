@@ -13,7 +13,7 @@ The current version of the code is:
 ::
     :name: hpp2plantuml-version
 
-    0.8.1
+    0.8.2
 
 
 The source code can be found on GitHub:
@@ -861,8 +861,12 @@ list of objects and wraps the objects in a ``namespace`` block on rendering.
             str
                 String representation of namespace in PlantUML syntax
             """
+            if self._name:
+                name = self._name.split('::')[-1]
+            else:
+                name = self._name
             return wrap_namespace('\n'.join([c.render()
-                                             for c in self]), self._name)
+                                             for c in self]), name)
 
 .. _sec-module-relationship:
 
@@ -1478,8 +1482,11 @@ be used to avoid this sorting step.
                 True when at least one container is a namespace
             """
             class_list_obj = self._make_class_list()
+            class_list_ns = [(c['obj']._namespace + '::'
+                              if c['obj']._namespace else '') + c['name']
+                             for c in class_list_obj]
             class_list = [c['name'] for c in class_list_obj]
-            return class_list_obj, class_list
+            return class_list_obj, class_list, class_list_ns
 
         def build_inheritance_list(self):
             """Build list of inheritance between objects
@@ -1494,7 +1501,7 @@ be used to avoid this sorting step.
             """
             self._inheritance_list = []
             # Build list of classes in diagram
-            class_list_obj, class_list = self._get_class_list()
+            class_list_obj, class_list, class_list_ns = self._get_class_list()
 
             # Create relationships
 
@@ -1503,9 +1510,14 @@ be used to avoid this sorting step.
                 obj_name = obj.name
                 if isinstance(obj, Class):
                     for parent in obj.build_inheritance_list():
+                        parent_obj = None
                         if parent in class_list:
                             parent_obj = class_list_obj[
                                 class_list.index(parent)]['obj']
+                        elif parent in class_list_ns:
+                            parent_obj = class_list_obj[
+                                class_list_ns.index(parent)]['obj']
+                        if parent_obj is not None:
                             self._inheritance_list.append(
                                 ClassInheritanceRelationship(
                                     parent_obj, obj))
@@ -1524,7 +1536,7 @@ be used to avoid this sorting step.
             """
             self._aggregation_list = []
              # Build list of classes in diagram
-            class_list_obj, class_list = self._get_class_list()
+            class_list_obj, class_list, class_list_ns = self._get_class_list()
 
             # Build member type list
             variable_type_list = {}
@@ -1539,7 +1551,7 @@ be used to avoid this sorting step.
                 if child_class in variable_type_list.keys():
                     var_types = variable_type_list[child_class]
                     for var_type in var_types:
-                        for parent in class_list:
+                        for parent in class_list or parent in class_list_ns:
                             if re.search(r'\b' + parent + r'\b', var_type):
                                 rel_type = 'composition'
                                 if '{}*'.format(parent) in var_type:
@@ -1548,9 +1560,13 @@ be used to avoid this sorting step.
                                                    child_class, rel_type=rel_type)
             for obj_class, obj_comp_list in aggregation_counts.items():
                 for comp_parent, rel_type, comp_count in obj_comp_list:
-                    obj_class_idx = class_list.index(obj_class)
+                    if obj_class in class_list:
+                        obj_class_idx = class_list.index(obj_class)
+                        comp_parent_idx = class_list.index(comp_parent)
+                    elif obj_class in class_list_ns:
+                        obj_class_idx = class_list_ns.index(obj_class)
+                        comp_parent_idx = class_list_ns.index(comp_parent)
                     obj_class_obj = class_list_obj[obj_class_idx]['obj']
-                    comp_parent_idx = class_list.index(comp_parent)
                     comp_parent_obj = class_list_obj[comp_parent_idx]['obj']
                     self._aggregation_list.append(
                         ClassAggregationRelationship(
@@ -1569,7 +1585,7 @@ be used to avoid this sorting step.
             """
 
             self._dependency_list = []
-            class_list_obj, class_list = self._get_class_list()
+            class_list_obj, class_list, class_list_ns = self._get_class_list()
 
             # Create relationships
 
@@ -1606,18 +1622,22 @@ be used to avoid this sorting step.
             """
             self._nesting_list = []
             # Build list of classes in diagram
-            class_list_obj, class_list = self._get_class_list()
+            class_list_obj, class_list, class_list_ns = self._get_class_list()
 
             for obj in self._objects:
                 obj_name = obj.name
                 if isinstance(obj, (Class, Enum)):
                     parent = obj._parent
+                    parent_obj = None
                     if parent and parent in class_list:
                         parent_obj = class_list_obj[
                             class_list.index(parent)]['obj']
-                        self._nesting_list.append(
-                            ClassNestingRelationship(
-                                parent_obj, obj))
+                    elif parent and parent in class_list_ns:
+                        parent_obj = class_list_obj[
+                            class_list_ns.index(parent)]['obj']
+                    if parent_obj is not None:
+                        self._nesting_list.append(ClassNestingRelationship(
+                            parent_obj, obj))
 
         def _augment_comp(self, c_dict, c_parent, c_child, rel_type='aggregation'):
             """Increment the aggregation reference count
@@ -1872,11 +1892,7 @@ block.
         """
         if not namespace:
             return ''
-        ns_list = namespace.split('::')
-        ns_list_out = [ns_list[0], ]
-        for ni, ns in enumerate(ns_list[1:]):
-            ns_list_out.append('{}::{}'.format(ns_list_out[ni - 1], ns))
-        return '.'.join(ns_list_out)
+        return '.'.join(namespace.split('::'))
 
 .. _sec-module-create-uml:
 
@@ -2036,7 +2052,7 @@ to parse input arguments.  The function passes the command line arguments to the
                             required=False, default=None, metavar='JINJA-FILE',
                             help='path to jinja2 template file')
         parser.add_argument('--version', action='version',
-                            version='%(prog)s ' + '0.8.1')
+                            version='%(prog)s ' + '0.8.2')
         args = parser.parse_args()
         if len(args.input_files) > 0:
             CreatePlantUMLFile(args.input_files, args.output_file,
@@ -2546,7 +2562,7 @@ The following can be extended to improve testing, as long as the corresponding
     :name: hpp-simple-classes-3
 
     template<typename T>
-    class Class03 {
+    class Class03 : public 	first_ns::second_ns::A {
     public:
     	Class03();
     	~Class03();
@@ -2610,7 +2626,7 @@ The following can be extended to improve testing, as long as the corresponding
 
     // Empty parent namespace (issue #13)
     namespace first_ns::second_ns{
-    	class A{};
+    	class A : public Class01 {};
     }
 
 .. _sec-test-system-ref:
@@ -2697,7 +2713,7 @@ The comparison takes into account the white space, indentation, etc.
 
 
     namespace first_ns {
-    	namespace first_ns::second_ns {
+    	namespace second_ns {
     		class A {
     		}
     	}
@@ -2729,7 +2745,7 @@ The comparison takes into account the white space, indentation, etc.
     		+a : int
     	}
 
-    	namespace Interface::NestedNamespace {
+    	namespace NestedNamespace {
     		class Class04_ns {
     			#_e : Enum
     			#_s : Struct
@@ -2743,13 +2759,19 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Inheritance relationships '/
 
+    first_ns.second_ns.A <|-- .Class03
+
+
+    .Class01 <|-- first_ns.second_ns.A
+
+
     .Class01 <|-- .Class02
 
 
     Interface.Class04 <|-- Interface.Class04_derived
 
 
-    Interface.Class04_derived <|-- Interface.Interface::NestedNamespace.Class04_ns
+    Interface.Class04_derived <|-- Interface.NestedNamespace.Class04_ns
 
 
 
@@ -2769,10 +2791,10 @@ The comparison takes into account the white space, indentation, etc.
     Interface.Class04 *-- .Enum01
 
 
-    Interface.Interface::NestedNamespace.Class04_ns *-- Interface.Enum
+    Interface.NestedNamespace.Class04_ns *-- Interface.Enum
 
 
-    Interface.Interface::NestedNamespace.Class04_ns *-- Interface.Struct
+    Interface.NestedNamespace.Class04_ns *-- Interface.Struct
 
 
 
@@ -2879,7 +2901,7 @@ The comparison takes into account the white space, indentation, etc.
 
 
     namespace first_ns {
-    	namespace first_ns::second_ns {
+    	namespace second_ns {
     		class A {
     		}
     	}
@@ -2911,7 +2933,7 @@ The comparison takes into account the white space, indentation, etc.
     		+a : int
     	}
 
-    	namespace Interface::NestedNamespace {
+    	namespace NestedNamespace {
     		class Class04_ns {
     			#_e : Enum
     			#_s : Struct
@@ -2925,13 +2947,19 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Inheritance relationships '/
 
+    first_ns.second_ns.A <|-- .Class03
+
+
+    .Class01 <|-- first_ns.second_ns.A
+
+
     .Class01 <|-- .Class02
 
 
     Interface.Class04 <|-- Interface.Class04_derived
 
 
-    Interface.Class04_derived <|-- Interface.Interface::NestedNamespace.Class04_ns
+    Interface.Class04_derived <|-- Interface.NestedNamespace.Class04_ns
 
 
 
@@ -2951,10 +2979,10 @@ The comparison takes into account the white space, indentation, etc.
     Interface.Class04 *-- .Enum01
 
 
-    Interface.Interface::NestedNamespace.Class04_ns *-- Interface.Enum
+    Interface.NestedNamespace.Class04_ns *-- Interface.Enum
 
 
-    Interface.Interface::NestedNamespace.Class04_ns *-- Interface.Struct
+    Interface.NestedNamespace.Class04_ns *-- Interface.Struct
 
 
 
@@ -3302,13 +3330,13 @@ obtained using the source block described `sec-org-el-version`_.
 
     __title__ = "hpp2plantuml"
     __description__ = "Convert C++ header files to PlantUML"
-    __version__ = '0.8.1'
+    __version__ = '0.8.2'
     __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
     __doc__ = __description__ + " <" + __uri__ + ">"
     __author__ = "Thibault Marin"
     __email__ = "thibault.marin@gmx.com"
     __license__ = "MIT"
-    __copyright__ = "Copyright (c) 2016 Thibault Marin"
+    __copyright__ = "Copyright (c) 2021 Thibault Marin"
 
     from .hpp2plantuml import CreatePlantUMLFile, Diagram
 
@@ -3394,9 +3422,6 @@ The non-boilerplate part of the ``setup.py`` file defines the package informatio
         "Operating System :: OS Independent",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.3",
-        "Programming Language :: Python :: 3.4",
-        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ]
@@ -3817,9 +3842,9 @@ content of the file is mostly following the defaults, with a few exceptions:
     # built documents.
     #
     # The short X.Y version.
-    version = u'v' + u'0.8.1'
+    version = u'v' + u'0.8.2'
     # The full version, including alpha/beta/rc tags.
-    release = u'v' + u'0.8.1'
+    release = u'v' + u'0.8.2'
 
     # The language for content autogenerated by Sphinx. Refer to documentation
     # for a list of supported languages.
@@ -3893,7 +3918,7 @@ content of the file is mostly following the defaults, with a few exceptions:
     # The name for this set of Sphinx documents.
     # "<project> v<release> documentation" by default.
     #
-    # html_title = u'hpp2plantuml ' + u'v' + u'0.8.1'
+    # html_title = u'hpp2plantuml ' + u'v' + u'0.8.2'
 
     # A shorter title for the navigation bar.  Default is the same as html_title.
     #
