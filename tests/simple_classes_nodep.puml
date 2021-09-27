@@ -70,7 +70,7 @@ class anon_union_1 {
 
 
 namespace first_ns {
-	namespace first_ns::second_ns {
+	namespace second_ns {
 		class A {
 		}
 	}
@@ -102,7 +102,7 @@ namespace Interface {
 		+a : int
 	}
 
-	namespace Interface::NestedNamespace {
+	namespace NestedNamespace {
 		class Class04_ns {
 			#_e : Enum
 			#_s : Struct
@@ -116,13 +116,19 @@ namespace Interface {
 
 /' Inheritance relationships '/
 
+first_ns.second_ns.A <|-- .Class03
+
+
+.Class01 <|-- first_ns.second_ns.A
+
+
 .Class01 <|-- .Class02
 
 
 Interface.Class04 <|-- Interface.Class04_derived
 
 
-Interface.Class04_derived <|-- Interface.Interface::NestedNamespace.Class04_ns
+Interface.Class04_derived <|-- Interface.NestedNamespace.Class04_ns
 
 
 
@@ -142,10 +148,10 @@ Interface.Class04 o-- .Class01
 Interface.Class04 *-- .Enum01
 
 
-Interface.Interface::NestedNamespace.Class04_ns *-- Interface.Enum
+Interface.NestedNamespace.Class04_ns *-- Interface.Enum
 
 
-Interface.Interface::NestedNamespace.Class04_ns *-- Interface.Struct
+Interface.NestedNamespace.Class04_ns *-- Interface.Struct
 
 
 

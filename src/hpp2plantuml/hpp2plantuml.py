@@ -578,8 +578,12 @@ class Namespace(list):
         str
             String representation of namespace in PlantUML syntax
         """
+        if self._name:
+            name = self._name.split('::')[-1]
+        else:
+            name = self._name
         return wrap_namespace('\n'.join([c.render()
-                                         for c in self]), self._name)
+                                         for c in self]), name)
 
 # %% Class connections
 
@@ -1055,8 +1059,11 @@ class Diagram(object):
             True when at least one container is a namespace
         """
         class_list_obj = self._make_class_list()
+        class_list_ns = [(c['obj']._namespace + '::'
+                          if c['obj']._namespace else '') + c['name']
+                         for c in class_list_obj]
         class_list = [c['name'] for c in class_list_obj]
-        return class_list_obj, class_list
+        return class_list_obj, class_list, class_list_ns
 
     def build_inheritance_list(self):
         """Build list of inheritance between objects
@@ -1071,7 +1078,7 @@ class Diagram(object):
         """
         self._inheritance_list = []
         # Build list of classes in diagram
-        class_list_obj, class_list = self._get_class_list()
+        class_list_obj, class_list, class_list_ns = self._get_class_list()
 
         # Create relationships
 
@@ -1080,9 +1087,14 @@ class Diagram(object):
             obj_name = obj.name
             if isinstance(obj, Class):
                 for parent in obj.build_inheritance_list():
+                    parent_obj = None
                     if parent in class_list:
                         parent_obj = class_list_obj[
                             class_list.index(parent)]['obj']
+                    elif parent in class_list_ns:
+                        parent_obj = class_list_obj[
+                            class_list_ns.index(parent)]['obj']
+                    if parent_obj is not None:
                         self._inheritance_list.append(
                             ClassInheritanceRelationship(
                                 parent_obj, obj))
@@ -1101,7 +1113,7 @@ class Diagram(object):
         """
         self._aggregation_list = []
          # Build list of classes in diagram
-        class_list_obj, class_list = self._get_class_list()
+        class_list_obj, class_list, class_list_ns = self._get_class_list()
 
         # Build member type list
         variable_type_list = {}
@@ -1116,7 +1128,7 @@ class Diagram(object):
             if child_class in variable_type_list.keys():
                 var_types = variable_type_list[child_class]
                 for var_type in var_types:
-                    for parent in class_list:
+                    for parent in class_list or parent in class_list_ns:
                         if re.search(r'\b' + parent + r'\b', var_type):
                             rel_type = 'composition'
                             if '{}*'.format(parent) in var_type:
@@ -1125,9 +1137,13 @@ class Diagram(object):
                                                child_class, rel_type=rel_type)
         for obj_class, obj_comp_list in aggregation_counts.items():
             for comp_parent, rel_type, comp_count in obj_comp_list:
-                obj_class_idx = class_list.index(obj_class)
+                if obj_class in class_list:
+                    obj_class_idx = class_list.index(obj_class)
+                    comp_parent_idx = class_list.index(comp_parent)
+                elif obj_class in class_list_ns:
+                    obj_class_idx = class_list_ns.index(obj_class)
+                    comp_parent_idx = class_list_ns.index(comp_parent)
                 obj_class_obj = class_list_obj[obj_class_idx]['obj']
-                comp_parent_idx = class_list.index(comp_parent)
                 comp_parent_obj = class_list_obj[comp_parent_idx]['obj']
                 self._aggregation_list.append(
                     ClassAggregationRelationship(
@@ -1146,7 +1162,7 @@ class Diagram(object):
         """
 
         self._dependency_list = []
-        class_list_obj, class_list = self._get_class_list()
+        class_list_obj, class_list, class_list_ns = self._get_class_list()
 
         # Create relationships
 
@@ -1183,18 +1199,22 @@ class Diagram(object):
         """
         self._nesting_list = []
         # Build list of classes in diagram
-        class_list_obj, class_list = self._get_class_list()
+        class_list_obj, class_list, class_list_ns = self._get_class_list()
 
         for obj in self._objects:
             obj_name = obj.name
             if isinstance(obj, (Class, Enum)):
                 parent = obj._parent
+                parent_obj = None
                 if parent and parent in class_list:
                     parent_obj = class_list_obj[
                         class_list.index(parent)]['obj']
-                    self._nesting_list.append(
-                        ClassNestingRelationship(
-                            parent_obj, obj))
+                elif parent and parent in class_list_ns:
+                    parent_obj = class_list_obj[
+                        class_list_ns.index(parent)]['obj']
+                if parent_obj is not None:
+                    self._nesting_list.append(ClassNestingRelationship(
+                        parent_obj, obj))
 
     def _augment_comp(self, c_dict, c_parent, c_child, rel_type='aggregation'):
         """Increment the aggregation reference count
@@ -1409,11 +1429,7 @@ def get_namespace_link_name(namespace):
     """
     if not namespace:
         return ''
-    ns_list = namespace.split('::')
-    ns_list_out = [ns_list[0], ]
-    for ni, ns in enumerate(ns_list[1:]):
-        ns_list_out.append('{}::{}'.format(ns_list_out[ni - 1], ns))
-    return '.'.join(ns_list_out)
+    return '.'.join(namespace.split('::'))
 
 # %% Main function
 
@@ -1475,7 +1491,7 @@ def main():
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.8.1')
+                        version='%(prog)s ' + '0.8.2')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,

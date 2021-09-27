@@ -1,5 +1,5 @@
 template<typename T>
-class Class03 {
+class Class03 : public 	first_ns::second_ns::A {
 public:
 	Class03();
 	~Class03();
@@ -63,5 +63,5 @@ union {
 
 // Empty parent namespace (issue #13)
 namespace first_ns::second_ns{
-	class A{};
+	class A : public Class01 {};
 }
