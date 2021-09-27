@@ -2626,7 +2626,7 @@ The following can be extended to improve testing, as long as the corresponding
 
     // Empty parent namespace (issue #13)
     namespace first_ns::second_ns{
-    	class A : public Class01 {};
+    	class A : public Class02 {};
     }
 
 .. _sec-test-system-ref:
@@ -2762,10 +2762,10 @@ The comparison takes into account the white space, indentation, etc.
     first_ns.second_ns.A <|-- .Class03
 
 
-    .Class01 <|-- first_ns.second_ns.A
-
-
     .Class01 <|-- .Class02
+
+
+    .Class02 <|-- first_ns.second_ns.A
 
 
     Interface.Class04 <|-- Interface.Class04_derived
@@ -2950,10 +2950,10 @@ The comparison takes into account the white space, indentation, etc.
     first_ns.second_ns.A <|-- .Class03
 
 
-    .Class01 <|-- first_ns.second_ns.A
-
-
     .Class01 <|-- .Class02
+
+
+    .Class02 <|-- first_ns.second_ns.A
 
 
     Interface.Class04 <|-- Interface.Class04_derived

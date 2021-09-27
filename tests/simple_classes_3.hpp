@@ -63,5 +63,5 @@ union {
 
 // Empty parent namespace (issue #13)
 namespace first_ns::second_ns{
-	class A : public Class01 {};
+	class A : public Class02 {};
 }

@@ -119,10 +119,10 @@ namespace Interface {
 first_ns.second_ns.A <|-- .Class03
 
 
-.Class01 <|-- first_ns.second_ns.A
-
-
 .Class01 <|-- .Class02
+
+
+.Class02 <|-- first_ns.second_ns.A
 
 
 Interface.Class04 <|-- Interface.Class04_derived
