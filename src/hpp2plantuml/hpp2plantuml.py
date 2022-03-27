@@ -1274,8 +1274,10 @@ class Diagram(object):
                 ns_pre = '::'.join(ns_split[:ni])
                 if ns_pre not in ns_list_in:
                     ns_list.append(ns_pre)
-        # Ensure nested namespaces are processed first
-        ns_list = sorted(ns_list, key=lambda ns: len(ns.split('::')),
+        # Remove duplicates (#22)
+        ns_list = list(set(ns_list))
+        # Ensure nested namespaces are processed first (secondary sort by name)
+        ns_list = sorted(ns_list, key=lambda ns: (len(ns.split('::')), ns),
                          reverse=True)
         # Create namespace objects (flat map)
         ns_obj_map = {ns: Namespace(ns) for ns in ns_list}
@@ -1491,7 +1493,7 @@ def main():
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.8.2')
+                        version='%(prog)s ' + '0.8.3')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
