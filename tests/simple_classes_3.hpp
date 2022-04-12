@@ -65,3 +65,7 @@ union {
 namespace first_ns::second_ns{
 	class A : public Class02 {};
 }
+
+namespace first_ns::second_ns::third_ns{
+	class B {};
+}

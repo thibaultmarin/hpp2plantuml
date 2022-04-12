@@ -73,6 +73,11 @@ namespace first_ns {
 	namespace second_ns {
 		class A {
 		}
+
+		namespace third_ns {
+			class B {
+			}
+		}
 	}
 }
 

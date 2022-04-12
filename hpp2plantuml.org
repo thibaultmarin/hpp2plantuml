@@ -2566,6 +2566,10 @@ union {
 namespace first_ns::second_ns{
 	class A : public Class02 {};
 }
+
+namespace first_ns::second_ns::third_ns{
+	class B {};
+}
 #+END_SRC
 
 
@@ -2653,6 +2657,11 @@ class anon_union_1 {
 namespace first_ns {
 	namespace second_ns {
 		class A {
+		}
+
+		namespace third_ns {
+			class B {
+			}
 		}
 	}
 }
@@ -2840,6 +2849,11 @@ class anon_union_1 {
 namespace first_ns {
 	namespace second_ns {
 		class A {
+		}
+
+		namespace third_ns {
+			class B {
+			}
 		}
 	}
 }

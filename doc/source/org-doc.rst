@@ -2631,6 +2631,10 @@ The following can be extended to improve testing, as long as the corresponding
     	class A : public Class02 {};
     }
 
+    namespace first_ns::second_ns::third_ns{
+    	class B {};
+    }
+
 .. _sec-test-system-ref:
 
 Reference output
@@ -2717,6 +2721,11 @@ The comparison takes into account the white space, indentation, etc.
     namespace first_ns {
     	namespace second_ns {
     		class A {
+    		}
+
+    		namespace third_ns {
+    			class B {
+    			}
     		}
     	}
     }
@@ -2905,6 +2914,11 @@ The comparison takes into account the white space, indentation, etc.
     namespace first_ns {
     	namespace second_ns {
     		class A {
+    		}
+
+    		namespace third_ns {
+    			class B {
+    			}
     		}
     	}
     }
