@@ -641,6 +641,8 @@ class ClassRelationship(object):
         str
             Class name with appropriate prefix for use with link rendering
         """
+        if (class_namespace == ''):
+            return class_name
         return get_namespace_link_name(class_namespace) + '.' + class_name
 
     def render(self):
