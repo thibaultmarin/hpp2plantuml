@@ -16,7 +16,7 @@ this single org-file.
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
-: 0.8.3
+: 0.8.4
 
 The source code can be found on GitHub:
 https://github.com/thibaultmarin/hpp2plantuml.
@@ -114,7 +114,7 @@ import glob
 <<py-dependencies("import")>>
 #+END_SRC
 
-The tests rely on the [[http://nose.readthedocs.io/en/latest/][nosetest]] framework and the package documentation is built
+The tests rely on the [[https://docs.pytest.org/en/7.3.x/][pytest]] framework and the package documentation is built
 with [[http://sphinx-doc.org][Sphinx]].
 
 
@@ -633,8 +633,8 @@ class ClassVariable(ClassMember):
         member_scope : str
             Scope property to member variable
         """
-        assert(isinstance(class_variable,
-                          CppHeaderParser.CppHeaderParser.CppVariable))
+        assert isinstance(class_variable,
+                          CppHeaderParser.CppHeaderParser.CppVariable)
 
         super().__init__(class_variable, member_scope)
 
@@ -695,8 +695,8 @@ class ClassMethod(ClassMember):
             Scope of the member method
 
         """
-        assert(isinstance(class_method,
-                          CppHeaderParser.CppHeaderParser.CppMethod))
+        assert isinstance(class_method,
+                          CppHeaderParser.CppHeaderParser.CppMethod)
 
         super().__init__(class_method, member_scope)
 
@@ -727,7 +727,7 @@ class ClassMethod(ClassMember):
             The method name (prefixed with the ``abstract`` keyword when
             appropriate) and signature
         """
-        assert(not self._static or not self._abstract)
+        assert not self._static or not self._abstract
 
         method_str = ('{abstract} ' if self._abstract else '') + \
                      self._name + '(' + \
@@ -930,7 +930,9 @@ class ClassRelationship(object):
         str
             Class name with appropriate prefix for use with link rendering
         """
-        return get_namespace_link_name(class_namespace) + '.' + class_name
+        if class_namespace:
+            return get_namespace_link_name(class_namespace) + '.' + class_name
+        return class_name
 
     def render(self):
         """Render class relationship to string
@@ -2159,7 +2161,7 @@ documentation for more details.
  :header-args:python+: :tangle tests/test_hpp2plantuml.py
  :END:
 
-Testing is performed using the [[http://nose.readthedocs.io/en/latest/][nose]] framework.  The tests are defined in the
+Testing is performed using the [[https://docs.pytest.org/en/7.3.x/][pytest]] framework.  The tests are defined in the
 =test_hpp2plantuml.py= file located in the test folder.  They can be run with
 the =python setup.py test= command.
 
@@ -2183,7 +2185,7 @@ import os
 import io
 import sys
 import re
-import nose.tools as nt
+import pytest
 import CppHeaderParser
 import hpp2plantuml
 
@@ -2196,7 +2198,7 @@ def get_parsed_element(input_str):
     return CppHeaderParser.CppHeader(input_str, argType='string')
 
 
-@nt.nottest
+@pytest.mark.skip(reason='not a test')
 def fix_test_list_def(test_list):
     test_list_out = []
     for test_entry in test_list:
@@ -2228,8 +2230,8 @@ class TestContainer:
         c_type = "container_type"
         c_name = "container_name"
         c_obj = hpp2plantuml.hpp2plantuml.Container(c_type, c_name)
-        nt.assert_equal(c_obj.name, c_name)
-        nt.assert_equal(c_obj.render(), 'container_type container_name {\n}\n')
+        assert c_obj.name == c_name
+        assert c_obj.render() == 'container_type container_name {\n}\n'
 
     def test_comparison_keys(self):
         c_list = [
@@ -2245,8 +2247,7 @@ class TestContainer:
         c_obj_list.sort(key=lambda obj: obj.comparison_keys())
 
         for i in range(len(c_list)):
-            nt.assert_equal(c_obj_list[i].name,
-                            c_list[ref_sort_idx[i]][1])
+            assert c_obj_list[i].name == c_list[ref_sort_idx[i]][1]
 #+END_SRC
 
 
@@ -2289,9 +2290,7 @@ class TestClassVariable:
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
             obj_m = obj_c._member_list[0]
-            nt.assert_equal(output_ref_str, obj_m.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_m.render()
 #+END_SRC
 
 
@@ -2327,9 +2326,7 @@ class TestClassMethod:
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
             obj_m = obj_c._member_list[0]
-            nt.assert_equal(output_ref_str, obj_m.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_m.render()
 #+END_SRC
 
 
@@ -2363,9 +2360,7 @@ class TestClass:
                                 input_str.replace('\n', ' '))
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
-            nt.assert_equal(output_ref_str, obj_c.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_c.render()
 #+END_SRC
 
 
@@ -2397,9 +2392,7 @@ class TestEnum:
                                input_str.replace('\n', ' '))
             enum_input = p.enums[0]
             obj_c = hpp2plantuml.hpp2plantuml.Enum(enum_input)
-            nt.assert_equal(output_ref_str, obj_c.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_c.render()
 #+END_SRC
 
 
@@ -2414,14 +2407,14 @@ relationships (with and without count).
 #+CAPTION: List of test segments and corresponding PlantUML strings.
 | C++                                                  | plantuml            |
 |------------------------------------------------------+---------------------|
-| "class A{};\nclass B : A{};"                         | ".A <@-- .B\n"      |
-| "class A{};\nclass B : public A{};"                  | ".A <@-- .B\n"      |
-| "class B{};\nclass A{B obj;};"                       | ".A *-- .B\n"       |
-| "class B{};\nclass A{B* obj;};"                      | ".A o-- .B\n"       |
-| "class B{};\nclass A{B * obj_ptr; B* ptr;};"         | ".A \"2\" o-- .B\n" |
-| "class A{};\nclass B{void Method(A* obj);};"         | ".A <.. .B\n"       |
+| "class A{};\nclass B : A{};"                         | "A <@-- B\n"     |
+| "class A{};\nclass B : public A{};"                  | "A <@-- B\n"      |
+| "class B{};\nclass A{B obj;};"                       | "A *-- B\n"       |
+| "class B{};\nclass A{B* obj;};"                      | "A o-- B\n"       |
+| "class B{};\nclass A{B * obj_ptr; B* ptr;};"         | "A \"2\" o-- B\n" |
+| "class A{};\nclass B{void Method(A* obj);};"         | "A <.. B\n"       |
 | "namespace T {class A{}; class B: A{};};"            | "T.A <@-- T.B\n"    |
-| "namespace T {\nclass A{};};\nclass B{T::A* _obj;};" | ".B o-- T.A\n"      |
+| "namespace T {\nclass A{};};\nclass B{T::A* _obj;};" | "B o-- T.A\n"      |
 
 
 #+NAME: test-unit-link
@@ -2439,9 +2432,7 @@ class TestLink:
                 obj_l = obj_d._aggregation_list[0]
             elif len(obj_d._dependency_list) > 0:
                 obj_l = obj_d._dependency_list[0]
-            nt.assert_equal(output_ref_str, obj_l.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_l.render()
 #+END_SRC
 
 
@@ -2706,13 +2697,13 @@ namespace Interface {
 
 /' Inheritance relationships '/
 
-first_ns.second_ns.A <|-- .Class03
+first_ns.second_ns.A <|-- Class03
 
 
-.Class01 <|-- .Class02
+Class01 <|-- Class02
 
 
-.Class02 <|-- first_ns.second_ns.A
+Class02 <|-- first_ns.second_ns.A
 
 
 Interface.Class04 <|-- Interface.Class04_derived
@@ -2726,16 +2717,16 @@ Interface.Class04_derived <|-- Interface.NestedNamespace.Class04_ns
 
 /' Aggregation relationships '/
 
-.Class03 "2" o-- .Class01
+Class03 "2" o-- Class01
 
 
-.Class03 *-- .Class02
+Class03 *-- Class02
 
 
-Interface.Class04 o-- .Class01
+Interface.Class04 o-- Class01
 
 
-Interface.Class04 *-- .Enum01
+Interface.Class04 *-- Enum01
 
 
 Interface.NestedNamespace.Class04_ns *-- Interface.Enum
@@ -2750,7 +2741,7 @@ Interface.NestedNamespace.Class04_ns *-- Interface.Struct
 
 /' Dependency relationships '/
 
-Interface.Class04 <.. .Class03
+Interface.Class04 <.. Class03
 
 
 
@@ -2759,13 +2750,13 @@ Interface.Class04 <.. .Class03
 
 /' Nested objects '/
 
-.Class02 +-- .Class02::ClassNested
+Class02 +-- Class02::ClassNested
 
 
-.anon_union_1 +-- .anon_union_1::anon_struct_1
+anon_union_1 +-- anon_union_1::anon_struct_1
 
 
-.anon_union_1 +-- .anon_union_1::anon_struct_2
+anon_union_1 +-- anon_union_1::anon_struct_2
 
 
 
@@ -2898,13 +2889,13 @@ namespace Interface {
 
 /' Inheritance relationships '/
 
-first_ns.second_ns.A <|-- .Class03
+first_ns.second_ns.A <|-- Class03
 
 
-.Class01 <|-- .Class02
+Class01 <|-- Class02
 
 
-.Class02 <|-- first_ns.second_ns.A
+Class02 <|-- first_ns.second_ns.A
 
 
 Interface.Class04 <|-- Interface.Class04_derived
@@ -2918,16 +2909,16 @@ Interface.Class04_derived <|-- Interface.NestedNamespace.Class04_ns
 
 /' Aggregation relationships '/
 
-.Class03 "2" o-- .Class01
+Class03 "2" o-- Class01
 
 
-.Class03 *-- .Class02
+Class03 *-- Class02
 
 
-Interface.Class04 o-- .Class01
+Interface.Class04 o-- Class01
 
 
-Interface.Class04 *-- .Enum01
+Interface.Class04 *-- Enum01
 
 
 Interface.NestedNamespace.Class04_ns *-- Interface.Enum
@@ -2942,13 +2933,13 @@ Interface.NestedNamespace.Class04_ns *-- Interface.Struct
 
 /' Nested objects '/
 
-.Class02 +-- .Class02::ClassNested
+Class02 +-- Class02::ClassNested
 
 
-.anon_union_1 +-- .anon_union_1::anon_struct_1
+anon_union_1 +-- anon_union_1::anon_struct_1
 
 
-.anon_union_1 +-- .anon_union_1::anon_struct_2
+anon_union_1 +-- anon_union_1::anon_struct_2
 
 
 
@@ -2986,7 +2977,7 @@ skinparam handwritten true
 
 class TestFullDiagram():
 
-    def __init__(self):
+    def setup_class(self):
         self._input_files = ['simple_classes_1_2.hpp', 'simple_classes_3.hpp']
         self._input_files_w = ['simple_classes_*.hpp', 'simple_classes_3.hpp']
         self._diag_saved_ref = ''
@@ -3014,7 +3005,7 @@ class TestFullDiagram():
             saved_ref = self._diag_saved_ref
         else:
             saved_ref = self._diag_saved_ref_nodep
-        nt.assert_equal(saved_ref, diag_render_ref)
+        assert saved_ref == diag_render_ref
 
         # # Validate equivalent inputs
 
@@ -3026,14 +3017,14 @@ class TestFullDiagram():
             # Create from file list
             diag_c = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c.create_from_file_list(file_list_c)
-            nt.assert_equal(diag_render_ref, diag_c.render())
+            assert diag_render_ref == diag_c.render()
 
             # Add from file list
             diag_c_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c_add.add_from_file_list(file_list_c)
             diag_c_add.build_relationship_lists()
             diag_c_add.sort_elements()
-            nt.assert_equal(diag_render_ref, diag_c_add.render())
+            assert diag_render_ref == diag_c_add.render()
 
             # Create from first file, add from rest of the list
             diag_c_file = hpp2plantuml.Diagram(flag_dep=flag_dep)
@@ -3042,7 +3033,7 @@ class TestFullDiagram():
                 diag_c_file.add_from_file(file_c)
             diag_c_file.build_relationship_lists()
             diag_c_file.sort_elements()
-            nt.assert_equal(diag_render_ref, diag_c_file.render())
+            assert diag_render_ref == diag_c_file.render()
 
         # String inputs
         input_str_list = []
@@ -3053,23 +3044,23 @@ class TestFullDiagram():
         # Create from string list
         diag_str_list = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str_list.create_from_string_list(input_str_list)
-        nt.assert_equal(diag_render_ref, diag_str_list.render())
+        assert diag_render_ref == diag_str_list.render()
 
         # Add from string list
         diag_str_list_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str_list_add.add_from_string_list(input_str_list)
         diag_str_list_add.build_relationship_lists()
         diag_str_list_add.sort_elements()
-        nt.assert_equal(diag_render_ref, diag_str_list_add.render())
+        assert diag_render_ref == diag_str_list_add.render()
 
         # Create from string
         diag_str = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str.create_from_string('\n'.join(input_str_list))
-        nt.assert_equal(diag_render_ref, diag_str.render())
+        assert diag_render_ref == diag_str.render()
         # Reset and parse
         diag_str.clear()
         diag_str.create_from_string('\n'.join(input_str_list))
-        nt.assert_equal(diag_render_ref, diag_str.render())
+        assert diag_render_ref == diag_str.render()
 
         # Manually build object
         diag_manual_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
@@ -3081,7 +3072,7 @@ class TestFullDiagram():
                 diag_manual_add.add_from_string(string_c)
         diag_manual_add.build_relationship_lists()
         diag_manual_add.sort_elements()
-        nt.assert_equal(diag_render_ref, diag_manual_add.render())
+        assert diag_render_ref == diag_manual_add.render()
 
     def test_main_function(self):
         #self._test_main_function_helper(False)
@@ -3104,7 +3095,7 @@ class TestFullDiagram():
             saved_ref = self._diag_saved_ref
         else:
             saved_ref = self._diag_saved_ref_nodep
-        nt.assert_equal(saved_ref, output_str)
+        assert saved_ref == output_str
 
         # Output to file
         output_fname = 'output.puml'
@@ -3118,10 +3109,10 @@ class TestFullDiagram():
                 output_fcontent = fid.read()
             if template is None:
                 # Default template check
-                nt.assert_equal(saved_ref, output_fcontent)
+                assert saved_ref == output_fcontent
             else:
                 # Check that all lines of reference are in the output
-                ref_re = re.search('(@startuml)\s*(.*)', saved_ref, re.DOTALL)
+                ref_re = re.search(r'(@startuml)\s*(.*)', saved_ref, re.DOTALL)
                 assert ref_re
                 # Build regular expression: allow arbitrary text between
                 # @startuml and the rest of the string
@@ -3131,7 +3122,7 @@ class TestFullDiagram():
                     '.*',                        # preamble
                     re.escape(ref_groups[1])]),  # main output
                                       re.DOTALL)
-                nt.assert_true(match_re.search(output_fcontent))
+                assert match_re.search(output_fcontent)
         os.unlink(output_fname)
 #+END_SRC
 
@@ -3181,7 +3172,7 @@ __doc__ = __description__ + " <" + __uri__ + ">"
 __author__ = "Thibault Marin"
 __email__ = "thibault.marin@gmx.com"
 __license__ = "MIT"
-__copyright__ = "Copyright (c) 2021 Thibault Marin"
+__copyright__ = "Copyright (c) 2023 Thibault Marin"
 
 from .hpp2plantuml import CreatePlantUMLFile, Diagram
 
@@ -3208,7 +3199,7 @@ command]] for =setup.py= run using ~python setup.py sphinx~.
 universal = 1
 
 [metadata]
-license_file = LICENSE
+license_files = LICENSE
 
 [build_sphinx]
 source-dir = doc/source
@@ -3239,7 +3230,7 @@ import sys
 import re
 import codecs
 
-from setuptools import setup, find_packages, Command
+from setuptools import setup, find_namespace_packages, Command
 try:
     import sphinx
     import sphinx.ext.apidoc
@@ -3259,7 +3250,7 @@ The non-boilerplate part of the =setup.py= file defines the package information.
 ###################################################################
 
 NAME = "hpp2plantuml"
-PACKAGES = find_packages(where="src")
+PACKAGES = find_namespace_packages(where="src")
 META_PATH = os.path.join("src", NAME, "__init__.py")
 KEYWORDS = ["class"]
 CLASSIFIERS = [
@@ -3380,8 +3371,8 @@ if __name__ == "__main__":
         classifiers=CLASSIFIERS,
         install_requires=INSTALL_REQUIRES,
         setup_requires=SETUP_REQUIRES,
-        test_suite='nose.collector',
-        tests_require=['nose'],
+        test_suite='pytest',
+        tests_require=['pytest'],
         entry_points={
             'console_scripts': ['hpp2plantuml=hpp2plantuml.hpp2plantuml:main']
         },

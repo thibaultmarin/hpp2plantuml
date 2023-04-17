@@ -7,7 +7,7 @@ import os
 import io
 import sys
 import re
-import nose.tools as nt
+import pytest
 import CppHeaderParser
 import hpp2plantuml
 
@@ -20,7 +20,7 @@ def get_parsed_element(input_str):
     return CppHeaderParser.CppHeader(input_str, argType='string')
 
 
-@nt.nottest
+@pytest.mark.skip(reason='not a test')
 def fix_test_list_def(test_list):
     test_list_out = []
     for test_entry in test_list:
@@ -38,8 +38,8 @@ class TestContainer:
         c_type = "container_type"
         c_name = "container_name"
         c_obj = hpp2plantuml.hpp2plantuml.Container(c_type, c_name)
-        nt.assert_equal(c_obj.name, c_name)
-        nt.assert_equal(c_obj.render(), 'container_type container_name {\n}\n')
+        assert c_obj.name == c_name
+        assert c_obj.render() == 'container_type container_name {\n}\n'
 
     def test_comparison_keys(self):
         c_list = [
@@ -55,8 +55,7 @@ class TestContainer:
         c_obj_list.sort(key=lambda obj: obj.comparison_keys())
 
         for i in range(len(c_list)):
-            nt.assert_equal(c_obj_list[i].name,
-                            c_list[ref_sort_idx[i]][1])
+            assert c_obj_list[i].name == c_list[ref_sort_idx[i]][1]
 
 test_list_classvar=[["""class Test {
 public:
@@ -78,9 +77,7 @@ class TestClassVariable:
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
             obj_m = obj_c._member_list[0]
-            nt.assert_equal(output_ref_str, obj_m.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_m.render()
 
 test_list_classmethod=[["""class Test {
 public:
@@ -106,9 +103,7 @@ class TestClassMethod:
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
             obj_m = obj_c._member_list[0]
-            nt.assert_equal(output_ref_str, obj_m.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_m.render()
 
 test_list_class=[["""class Test {
 protected:
@@ -153,9 +148,7 @@ class TestClass:
                                 input_str.replace('\n', ' '))
             class_input = [class_name, p.classes[class_name]]
             obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
-            nt.assert_equal(output_ref_str, obj_c.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_c.render()
 
 test_list_enum=[["enum Test { A, B, CD, E };", """enum Test {
 	A
@@ -187,26 +180,24 @@ class TestEnum:
                                input_str.replace('\n', ' '))
             enum_input = p.enums[0]
             obj_c = hpp2plantuml.hpp2plantuml.Enum(enum_input)
-            nt.assert_equal(output_ref_str, obj_c.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_c.render()
 
 test_list_link=[["""class A{};
-class B : A{};""", """.A <@-- .B
+class B : A{};""", """A <@-- B
 """], ["""class A{};
-class B : public A{};""", """.A <@-- .B
+class B : public A{};""", """A <@-- B
 """], ["""class B{};
-class A{B obj;};""", """.A *-- .B
+class A{B obj;};""", """A *-- B
 """], ["""class B{};
-class A{B* obj;};""", """.A o-- .B
+class A{B* obj;};""", """A o-- B
 """], ["""class B{};
-class A{B * obj_ptr; B* ptr;};""", """.A \"2\" o-- .B
+class A{B * obj_ptr; B* ptr;};""", """A \"2\" o-- B
 """], ["""class A{};
-class B{void Method(A* obj);};""", """.A <.. .B
+class B{void Method(A* obj);};""", """A <.. B
 """], ["namespace T {class A{}; class B: A{};};", """T.A <@-- T.B
 """], ["""namespace T {
 class A{};};
-class B{T::A* _obj;};""", """.B o-- T.A
+class B{T::A* _obj;};""", """B o-- T.A
 """]]
 class TestLink:
     def test_list_entries(self):
@@ -221,16 +212,14 @@ class TestLink:
                 obj_l = obj_d._aggregation_list[0]
             elif len(obj_d._dependency_list) > 0:
                 obj_l = obj_d._dependency_list[0]
-            nt.assert_equal(output_ref_str, obj_l.render(),
-                            'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                  input_str))
+            assert output_ref_str == obj_l.render()
 
 # %% Test overall system
 
 
 class TestFullDiagram():
 
-    def __init__(self):
+    def setup_class(self):
         self._input_files = ['simple_classes_1_2.hpp', 'simple_classes_3.hpp']
         self._input_files_w = ['simple_classes_*.hpp', 'simple_classes_3.hpp']
         self._diag_saved_ref = ''
@@ -258,7 +247,7 @@ class TestFullDiagram():
             saved_ref = self._diag_saved_ref
         else:
             saved_ref = self._diag_saved_ref_nodep
-        nt.assert_equal(saved_ref, diag_render_ref)
+        assert saved_ref == diag_render_ref
 
         # # Validate equivalent inputs
 
@@ -270,14 +259,14 @@ class TestFullDiagram():
             # Create from file list
             diag_c = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c.create_from_file_list(file_list_c)
-            nt.assert_equal(diag_render_ref, diag_c.render())
+            assert diag_render_ref == diag_c.render()
 
             # Add from file list
             diag_c_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_c_add.add_from_file_list(file_list_c)
             diag_c_add.build_relationship_lists()
             diag_c_add.sort_elements()
-            nt.assert_equal(diag_render_ref, diag_c_add.render())
+            assert diag_render_ref == diag_c_add.render()
 
             # Create from first file, add from rest of the list
             diag_c_file = hpp2plantuml.Diagram(flag_dep=flag_dep)
@@ -286,7 +275,7 @@ class TestFullDiagram():
                 diag_c_file.add_from_file(file_c)
             diag_c_file.build_relationship_lists()
             diag_c_file.sort_elements()
-            nt.assert_equal(diag_render_ref, diag_c_file.render())
+            assert diag_render_ref == diag_c_file.render()
 
         # String inputs
         input_str_list = []
@@ -297,23 +286,23 @@ class TestFullDiagram():
         # Create from string list
         diag_str_list = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str_list.create_from_string_list(input_str_list)
-        nt.assert_equal(diag_render_ref, diag_str_list.render())
+        assert diag_render_ref == diag_str_list.render()
 
         # Add from string list
         diag_str_list_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str_list_add.add_from_string_list(input_str_list)
         diag_str_list_add.build_relationship_lists()
         diag_str_list_add.sort_elements()
-        nt.assert_equal(diag_render_ref, diag_str_list_add.render())
+        assert diag_render_ref == diag_str_list_add.render()
 
         # Create from string
         diag_str = hpp2plantuml.Diagram(flag_dep=flag_dep)
         diag_str.create_from_string('\n'.join(input_str_list))
-        nt.assert_equal(diag_render_ref, diag_str.render())
+        assert diag_render_ref == diag_str.render()
         # Reset and parse
         diag_str.clear()
         diag_str.create_from_string('\n'.join(input_str_list))
-        nt.assert_equal(diag_render_ref, diag_str.render())
+        assert diag_render_ref == diag_str.render()
 
         # Manually build object
         diag_manual_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
@@ -325,7 +314,7 @@ class TestFullDiagram():
                 diag_manual_add.add_from_string(string_c)
         diag_manual_add.build_relationship_lists()
         diag_manual_add.sort_elements()
-        nt.assert_equal(diag_render_ref, diag_manual_add.render())
+        assert diag_render_ref == diag_manual_add.render()
 
     def test_main_function(self):
         #self._test_main_function_helper(False)
@@ -348,7 +337,7 @@ class TestFullDiagram():
             saved_ref = self._diag_saved_ref
         else:
             saved_ref = self._diag_saved_ref_nodep
-        nt.assert_equal(saved_ref, output_str)
+        assert saved_ref == output_str
 
         # Output to file
         output_fname = 'output.puml'
@@ -362,10 +351,10 @@ class TestFullDiagram():
                 output_fcontent = fid.read()
             if template is None:
                 # Default template check
-                nt.assert_equal(saved_ref, output_fcontent)
+                assert saved_ref == output_fcontent
             else:
                 # Check that all lines of reference are in the output
-                ref_re = re.search('(@startuml)\s*(.*)', saved_ref, re.DOTALL)
+                ref_re = re.search(r'(@startuml)\s*(.*)', saved_ref, re.DOTALL)
                 assert ref_re
                 # Build regular expression: allow arbitrary text between
                 # @startuml and the rest of the string
@@ -375,5 +364,5 @@ class TestFullDiagram():
                     '.*',                        # preamble
                     re.escape(ref_groups[1])]),  # main output
                                       re.DOTALL)
-                nt.assert_true(match_re.search(output_fcontent))
+                assert match_re.search(output_fcontent)
         os.unlink(output_fname)

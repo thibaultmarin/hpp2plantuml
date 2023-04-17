@@ -401,8 +401,8 @@ class ClassVariable(ClassMember):
         member_scope : str
             Scope property to member variable
         """
-        assert(isinstance(class_variable,
-                          CppHeaderParser.CppHeaderParser.CppVariable))
+        assert isinstance(class_variable,
+                          CppHeaderParser.CppHeaderParser.CppVariable)
 
         super().__init__(class_variable, member_scope)
 
@@ -445,8 +445,8 @@ class ClassMethod(ClassMember):
             Scope of the member method
 
         """
-        assert(isinstance(class_method,
-                          CppHeaderParser.CppHeaderParser.CppMethod))
+        assert isinstance(class_method,
+                          CppHeaderParser.CppHeaderParser.CppMethod)
 
         super().__init__(class_method, member_scope)
 
@@ -477,7 +477,7 @@ class ClassMethod(ClassMember):
             The method name (prefixed with the ``abstract`` keyword when
             appropriate) and signature
         """
-        assert(not self._static or not self._abstract)
+        assert not self._static or not self._abstract
 
         method_str = ('{abstract} ' if self._abstract else '') + \
                      self._name + '(' + \
@@ -641,7 +641,9 @@ class ClassRelationship(object):
         str
             Class name with appropriate prefix for use with link rendering
         """
-        return get_namespace_link_name(class_namespace) + '.' + class_name
+        if class_namespace:
+            return get_namespace_link_name(class_namespace) + '.' + class_name
+        return class_name
 
     def render(self):
         """Render class relationship to string
@@ -1493,7 +1495,7 @@ def main():
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
-                        version='%(prog)s ' + '0.8.3')
+                        version='%(prog)s ' + '0.8.4')
     args = parser.parse_args()
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,

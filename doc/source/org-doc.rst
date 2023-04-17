@@ -13,7 +13,7 @@ The current version of the code is:
 ::
     :name: hpp2plantuml-version
 
-    0.8.3
+    0.8.4
 
 
 The source code can be found on GitHub:
@@ -123,7 +123,7 @@ block (returning either imports or a dependency list used in `sec-package-setup-
     import CppHeaderParser
     import jinja2
 
-The tests rely on the `nosetest <http://nose.readthedocs.io/en/latest/>`_ framework and the package documentation is built
+The tests rely on the `pytest <https://docs.pytest.org/en/7.3.x/>`_ framework and the package documentation is built
 with `Sphinx <http://sphinx-doc.org>`_.
 
 .. _sec-module:
@@ -648,8 +648,8 @@ to the `sec-module-class-member`_.
             member_scope : str
                 Scope property to member variable
             """
-            assert(isinstance(class_variable,
-                              CppHeaderParser.CppHeaderParser.CppVariable))
+            assert isinstance(class_variable,
+                              CppHeaderParser.CppHeaderParser.CppVariable)
 
             super().__init__(class_variable, member_scope)
 
@@ -709,8 +709,8 @@ implemented in the future.
                 Scope of the member method
 
             """
-            assert(isinstance(class_method,
-                              CppHeaderParser.CppHeaderParser.CppMethod))
+            assert isinstance(class_method,
+                              CppHeaderParser.CppHeaderParser.CppMethod)
 
             super().__init__(class_method, member_scope)
 
@@ -741,7 +741,7 @@ implemented in the future.
                 The method name (prefixed with the ``abstract`` keyword when
                 appropriate) and signature
             """
-            assert(not self._static or not self._abstract)
+            assert not self._static or not self._abstract
 
             method_str = ('{abstract} ' if self._abstract else '') + \
                          self._name + '(' + \
@@ -943,7 +943,9 @@ strings and the text representation of a connection link is obtained from the
             str
                 Class name with appropriate prefix for use with link rendering
             """
-            return get_namespace_link_name(class_namespace) + '.' + class_name
+            if class_namespace:
+                return get_namespace_link_name(class_namespace) + '.' + class_name
+            return class_name
 
         def render(self):
             """Render class relationship to string
@@ -2054,7 +2056,7 @@ to parse input arguments.  The function passes the command line arguments to the
                             required=False, default=None, metavar='JINJA-FILE',
                             help='path to jinja2 template file')
         parser.add_argument('--version', action='version',
-                            version='%(prog)s ' + '0.8.3')
+                            version='%(prog)s ' + '0.8.4')
         args = parser.parse_args()
         if len(args.input_files) > 0:
             CreatePlantUMLFile(args.input_files, args.output_file,
@@ -2186,7 +2188,7 @@ documentation for more details.
 Tests
 -----
 
-Testing is performed using the `nose <http://nose.readthedocs.io/en/latest/>`_ framework.  The tests are defined in the
+Testing is performed using the `pytest <https://docs.pytest.org/en/7.3.x/>`_ framework.  The tests are defined in the
 ``test_hpp2plantuml.py`` file located in the test folder.  They can be run with
 the ``python setup.py test`` command.
 
@@ -2211,7 +2213,7 @@ Following is the test setup code.
     import io
     import sys
     import re
-    import nose.tools as nt
+    import pytest
     import CppHeaderParser
     import hpp2plantuml
 
@@ -2224,7 +2226,7 @@ Following is the test setup code.
         return CppHeaderParser.CppHeader(input_str, argType='string')
 
 
-    @nt.nottest
+    @pytest.mark.skip(reason='not a test')
     def fix_test_list_def(test_list):
         test_list_out = []
         for test_entry in test_list:
@@ -2258,8 +2260,8 @@ sorting keys.
             c_type = "container_type"
             c_name = "container_name"
             c_obj = hpp2plantuml.hpp2plantuml.Container(c_type, c_name)
-            nt.assert_equal(c_obj.name, c_name)
-            nt.assert_equal(c_obj.render(), 'container_type container_name {\n}\n')
+            assert c_obj.name == c_name
+            assert c_obj.render() == 'container_type container_name {\n}\n'
 
         def test_comparison_keys(self):
             c_list = [
@@ -2275,8 +2277,7 @@ sorting keys.
             c_obj_list.sort(key=lambda obj: obj.comparison_keys())
 
             for i in range(len(c_list)):
-                nt.assert_equal(c_obj_list[i].name,
-                                c_list[ref_sort_idx[i]][1])
+                assert c_obj_list[i].name == c_list[ref_sort_idx[i]][1]
 
 Class
 ^^^^^
@@ -2324,9 +2325,7 @@ the representation of variables.
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
                 obj_m = obj_c._member_list[0]
-                nt.assert_equal(output_ref_str, obj_m.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_m.render()
 
 Class method
 ::::::::::::
@@ -2369,9 +2368,7 @@ supported by PlantUML.
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
                 obj_m = obj_c._member_list[0]
-                nt.assert_equal(output_ref_str, obj_m.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_m.render()
 
 Class
 :::::
@@ -2413,9 +2410,7 @@ Table `tbl-unittest-class`_.  It includes templates and abstract classes.
                                     input_str.replace('\n', ' '))
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
-                nt.assert_equal(output_ref_str, obj_c.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_c.render()
 
 Enum
 ^^^^
@@ -2452,9 +2447,7 @@ Table `tbl-unittest-enum`_.
                                    input_str.replace('\n', ' '))
                 enum_input = p.enums[0]
                 obj_c = hpp2plantuml.hpp2plantuml.Enum(enum_input)
-                nt.assert_equal(output_ref_str, obj_c.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_c.render()
 
 Links
 ^^^^^
@@ -2504,9 +2497,7 @@ relationships (with and without count).
                     obj_l = obj_d._aggregation_list[0]
                 elif len(obj_d._dependency_list) > 0:
                     obj_l = obj_d._dependency_list[0]
-                nt.assert_equal(output_ref_str, obj_l.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_l.render()
 
 Full system test
 ~~~~~~~~~~~~~~~~
@@ -3056,7 +3047,7 @@ The system test validates the following:
 
     class TestFullDiagram():
 
-        def __init__(self):
+        def setup_class(self):
             self._input_files = ['simple_classes_1_2.hpp', 'simple_classes_3.hpp']
             self._input_files_w = ['simple_classes_*.hpp', 'simple_classes_3.hpp']
             self._diag_saved_ref = ''
@@ -3084,7 +3075,7 @@ The system test validates the following:
                 saved_ref = self._diag_saved_ref
             else:
                 saved_ref = self._diag_saved_ref_nodep
-            nt.assert_equal(saved_ref, diag_render_ref)
+            assert saved_ref == diag_render_ref
 
             # # Validate equivalent inputs
 
@@ -3096,14 +3087,14 @@ The system test validates the following:
                 # Create from file list
                 diag_c = hpp2plantuml.Diagram(flag_dep=flag_dep)
                 diag_c.create_from_file_list(file_list_c)
-                nt.assert_equal(diag_render_ref, diag_c.render())
+                assert diag_render_ref == diag_c.render()
 
                 # Add from file list
                 diag_c_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
                 diag_c_add.add_from_file_list(file_list_c)
                 diag_c_add.build_relationship_lists()
                 diag_c_add.sort_elements()
-                nt.assert_equal(diag_render_ref, diag_c_add.render())
+                assert diag_render_ref == diag_c_add.render()
 
                 # Create from first file, add from rest of the list
                 diag_c_file = hpp2plantuml.Diagram(flag_dep=flag_dep)
@@ -3112,7 +3103,7 @@ The system test validates the following:
                     diag_c_file.add_from_file(file_c)
                 diag_c_file.build_relationship_lists()
                 diag_c_file.sort_elements()
-                nt.assert_equal(diag_render_ref, diag_c_file.render())
+                assert diag_render_ref == diag_c_file.render()
 
             # String inputs
             input_str_list = []
@@ -3123,23 +3114,23 @@ The system test validates the following:
             # Create from string list
             diag_str_list = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_str_list.create_from_string_list(input_str_list)
-            nt.assert_equal(diag_render_ref, diag_str_list.render())
+            assert diag_render_ref == diag_str_list.render()
 
             # Add from string list
             diag_str_list_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_str_list_add.add_from_string_list(input_str_list)
             diag_str_list_add.build_relationship_lists()
             diag_str_list_add.sort_elements()
-            nt.assert_equal(diag_render_ref, diag_str_list_add.render())
+            assert diag_render_ref == diag_str_list_add.render()
 
             # Create from string
             diag_str = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_str.create_from_string('\n'.join(input_str_list))
-            nt.assert_equal(diag_render_ref, diag_str.render())
+            assert diag_render_ref == diag_str.render()
             # Reset and parse
             diag_str.clear()
             diag_str.create_from_string('\n'.join(input_str_list))
-            nt.assert_equal(diag_render_ref, diag_str.render())
+            assert diag_render_ref == diag_str.render()
 
             # Manually build object
             diag_manual_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
@@ -3151,7 +3142,7 @@ The system test validates the following:
                     diag_manual_add.add_from_string(string_c)
             diag_manual_add.build_relationship_lists()
             diag_manual_add.sort_elements()
-            nt.assert_equal(diag_render_ref, diag_manual_add.render())
+            assert diag_render_ref == diag_manual_add.render()
 
         def test_main_function(self):
             #self._test_main_function_helper(False)
@@ -3174,7 +3165,7 @@ The system test validates the following:
                 saved_ref = self._diag_saved_ref
             else:
                 saved_ref = self._diag_saved_ref_nodep
-            nt.assert_equal(saved_ref, output_str)
+            assert saved_ref == output_str
 
             # Output to file
             output_fname = 'output.puml'
@@ -3188,10 +3179,10 @@ The system test validates the following:
                     output_fcontent = fid.read()
                 if template is None:
                     # Default template check
-                    nt.assert_equal(saved_ref, output_fcontent)
+                    assert saved_ref == output_fcontent
                 else:
                     # Check that all lines of reference are in the output
-                    ref_re = re.search('(@startuml)\s*(.*)', saved_ref, re.DOTALL)
+                    ref_re = re.search(r'(@startuml)\s*(.*)', saved_ref, re.DOTALL)
                     assert ref_re
                     # Build regular expression: allow arbitrary text between
                     # @startuml and the rest of the string
@@ -3201,7 +3192,7 @@ The system test validates the following:
                         '.*',                        # preamble
                         re.escape(ref_groups[1])]),  # main output
                                           re.DOTALL)
-                    nt.assert_true(match_re.search(output_fcontent))
+                    assert match_re.search(output_fcontent)
             os.unlink(output_fname)
 
 Packaging
@@ -3346,13 +3337,13 @@ obtained using the source block described `sec-org-el-version`_.
 
     __title__ = "hpp2plantuml"
     __description__ = "Convert C++ header files to PlantUML"
-    __version__ = '0.8.3'
+    __version__ = '0.8.4'
     __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
     __doc__ = __description__ + " <" + __uri__ + ">"
     __author__ = "Thibault Marin"
     __email__ = "thibault.marin@gmx.com"
     __license__ = "MIT"
-    __copyright__ = "Copyright (c) 2021 Thibault Marin"
+    __copyright__ = "Copyright (c) 2023 Thibault Marin"
 
     from .hpp2plantuml import CreatePlantUMLFile, Diagram
 
@@ -3378,7 +3369,7 @@ documentation files.  In practice, the documentation is built using a `sec-packa
     universal = 1
 
     [metadata]
-    license_file = LICENSE
+    license_files = LICENSE
 
     [build_sphinx]
     source-dir = doc/source
@@ -3406,7 +3397,7 @@ options.  Most of it is taken from `this post <https://hynek.me/articles/sharing
     import re
     import codecs
 
-    from setuptools import setup, find_packages, Command
+    from setuptools import setup, find_namespace_packages, Command
     try:
         import sphinx
         import sphinx.ext.apidoc
@@ -3427,7 +3418,7 @@ The non-boilerplate part of the ``setup.py`` file defines the package informatio
     ###################################################################
 
     NAME = "hpp2plantuml"
-    PACKAGES = find_packages(where="src")
+    PACKAGES = find_namespace_packages(where="src")
     META_PATH = os.path.join("src", NAME, "__init__.py")
     KEYWORDS = ["class"]
     CLASSIFIERS = [
@@ -3552,8 +3543,8 @@ This final block passes all the relevant package information to ``setuptools``:
             classifiers=CLASSIFIERS,
             install_requires=INSTALL_REQUIRES,
             setup_requires=SETUP_REQUIRES,
-            test_suite='nose.collector',
-            tests_require=['nose'],
+            test_suite='pytest',
+            tests_require=['pytest'],
             entry_points={
                 'console_scripts': ['hpp2plantuml=hpp2plantuml.hpp2plantuml:main']
             },
@@ -3858,9 +3849,9 @@ content of the file is mostly following the defaults, with a few exceptions:
     # built documents.
     #
     # The short X.Y version.
-    version = u'v' + u'0.8.3'
+    version = u'v' + u'0.8.4'
     # The full version, including alpha/beta/rc tags.
-    release = u'v' + u'0.8.3'
+    release = u'v' + u'0.8.4'
 
     # The language for content autogenerated by Sphinx. Refer to documentation
     # for a list of supported languages.
@@ -3934,7 +3925,7 @@ content of the file is mostly following the defaults, with a few exceptions:
     # The name for this set of Sphinx documents.
     # "<project> v<release> documentation" by default.
     #
-    # html_title = u'hpp2plantuml ' + u'v' + u'0.8.3'
+    # html_title = u'hpp2plantuml ' + u'v' + u'0.8.4'
 
     # A shorter title for the navigation bar.  Default is the same as html_title.
     #
