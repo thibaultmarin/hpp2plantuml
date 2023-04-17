@@ -4,7 +4,7 @@ import sys
 import re
 import codecs
 
-from setuptools import setup, find_namespace_packages, Command
+from setuptools import setup, find_packages, Command
 try:
     import sphinx
     import sphinx.ext.apidoc
@@ -17,7 +17,7 @@ except ImportError:
 ###################################################################
 
 NAME = "hpp2plantuml"
-PACKAGES = find_namespace_packages(where="src")
+PACKAGES = find_packages(where="src")
 META_PATH = os.path.join("src", NAME, "__init__.py")
 KEYWORDS = ["class"]
 CLASSIFIERS = [

@@ -654,6 +654,9 @@ to the `sec-module-class-member`_.
             super().__init__(class_variable, member_scope)
 
             self._type = _cleanup_type(class_variable['type'])
+            if class_variable.get('array', 0):
+                self._type += '[]'
+
 
         def get_type(self):
             """Variable type accessor
@@ -2298,15 +2301,17 @@ the representation of variables.
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-class_var
 
-    +---------------------------------------------+-------------------+
-    | C++                                         | plantuml          |
-    +=============================================+===================+
-    | "class Test {\npublic:\nint member; };"     | "+member : int"   |
-    +---------------------------------------------+-------------------+
-    | "class Test {\nprivate:\nint \* member; };" | "-member : int\*" |
-    +---------------------------------------------+-------------------+
-    | "class Test {\nprotected:\nint &member; };" | "#member : int&"  |
-    +---------------------------------------------+-------------------+
+    +------------------------------------------------+-------------------+
+    | C++                                            | plantuml          |
+    +================================================+===================+
+    | "class Test {\npublic:\nint member; };"        | "+member : int"   |
+    +------------------------------------------------+-------------------+
+    | "class Test {\nprivate:\nint \* member; };"    | "-member : int\*" |
+    +------------------------------------------------+-------------------+
+    | "class Test {\nprotected:\nint &member; };"    | "#member : int&"  |
+    +------------------------------------------------+-------------------+
+    | "class Test {\nprotected:\nint member[10]; };" | "#member : int[]" |
+    +------------------------------------------------+-------------------+
 
 
 .. code:: python
@@ -2705,7 +2710,7 @@ The comparison takes into account the white space, indentation, etc.
 
 
     class anon_union_1 {
-    	+vec : float
+    	+vec : float[]
     }
 
 
@@ -2898,7 +2903,7 @@ The comparison takes into account the white space, indentation, etc.
 
 
     class anon_union_1 {
-    	+vec : float
+    	+vec : float[]
     }
 
 
@@ -3390,14 +3395,13 @@ options.  Most of it is taken from `this post <https://hynek.me/articles/sharing
 .. code:: python
     :name: py-setup-import
 
-
     # %% Imports
     import os
     import sys
     import re
     import codecs
 
-    from setuptools import setup, find_namespace_packages, Command
+    from setuptools import setup, find_packages, Command
     try:
         import sphinx
         import sphinx.ext.apidoc
@@ -3418,7 +3422,7 @@ The non-boilerplate part of the ``setup.py`` file defines the package informatio
     ###################################################################
 
     NAME = "hpp2plantuml"
-    PACKAGES = find_namespace_packages(where="src")
+    PACKAGES = find_packages(where="src")
     META_PATH = os.path.join("src", NAME, "__init__.py")
     KEYWORDS = ["class"]
     CLASSIFIERS = [

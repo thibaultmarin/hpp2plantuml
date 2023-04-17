@@ -65,7 +65,7 @@ class anon_union_1::anon_struct_2 {
 
 
 class anon_union_1 {
-	+vec : float
+	+vec : float[]
 }
 
 

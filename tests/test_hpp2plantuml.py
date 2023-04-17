@@ -63,7 +63,9 @@ int member; };""", "+member : int"], ["""class Test {
 private:
 int * member; };""", "-member : int*"], ["""class Test {
 protected:
-int &member; };""", "#member : int&"]]
+int &member; };""", "#member : int&"], ["""class Test {
+protected:
+int member[10]; };""", "#member : int[]"]]
 # %% Test class variables
 
 

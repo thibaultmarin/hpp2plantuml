@@ -639,6 +639,9 @@ class ClassVariable(ClassMember):
         super().__init__(class_variable, member_scope)
 
         self._type = _cleanup_type(class_variable['type'])
+        if class_variable.get('array', 0):
+            self._type += '[]'
+
 
     def get_type(self):
         """Variable type accessor
@@ -2268,11 +2271,12 @@ the representation of variables.
 
 #+NAME: tbl-unittest-class_var
 #+CAPTION: List of test segments and corresponding PlantUML strings.
-| C++                                         | plantuml         |
-|---------------------------------------------+------------------|
-| "class Test {\npublic:\nint member; };"     | "+member : int"  |
-| "class Test {\nprivate:\nint * member; };"  | "-member : int*" |
-| "class Test {\nprotected:\nint &member; };" | "#member : int&" |
+| C++                                            | plantuml          |
+|------------------------------------------------+-------------------|
+| "class Test {\npublic:\nint member; };"        | "+member : int"   |
+| "class Test {\nprivate:\nint * member; };"     | "-member : int*"  |
+| "class Test {\nprotected:\nint &member; };"    | "#member : int&"  |
+| "class Test {\nprotected:\nint member[10]; };" | "#member : int[]" |
 
 
 #+NAME: test-unit-class_var
@@ -2641,7 +2645,7 @@ class anon_union_1::anon_struct_2 {
 
 
 class anon_union_1 {
-	+vec : float
+	+vec : float[]
 }
 
 
@@ -2833,7 +2837,7 @@ class anon_union_1::anon_struct_2 {
 
 
 class anon_union_1 {
-	+vec : float
+	+vec : float[]
 }
 
 
@@ -3223,14 +3227,13 @@ options.  Most of it is taken from [[https://hynek.me/articles/sharing-your-labo
 
 #+NAME: py-setup-import
 #+BEGIN_SRC python
-
 # %% Imports
 import os
 import sys
 import re
 import codecs
 
-from setuptools import setup, find_namespace_packages, Command
+from setuptools import setup, find_packages, Command
 try:
     import sphinx
     import sphinx.ext.apidoc
@@ -3250,7 +3253,7 @@ The non-boilerplate part of the =setup.py= file defines the package information.
 ###################################################################
 
 NAME = "hpp2plantuml"
-PACKAGES = find_namespace_packages(where="src")
+PACKAGES = find_packages(where="src")
 META_PATH = os.path.join("src", NAME, "__init__.py")
 KEYWORDS = ["class"]
 CLASSIFIERS = [

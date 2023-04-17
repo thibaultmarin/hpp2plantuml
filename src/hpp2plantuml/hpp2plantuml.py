@@ -407,6 +407,9 @@ class ClassVariable(ClassMember):
         super().__init__(class_variable, member_scope)
 
         self._type = _cleanup_type(class_variable['type'])
+        if class_variable.get('array', 0):
+            self._type += '[]'
+
 
     def get_type(self):
         """Variable type accessor
