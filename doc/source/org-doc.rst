@@ -2460,25 +2460,25 @@ relationships (with and without count).
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-link
 
-    +----------------------------------------------------------+-----------------------+
-    | C++                                                      | plantuml              |
-    +==========================================================+=======================+
-    | "class A{};\nclass B : A{};"                             | ".A <@-- .B\n"        |
-    +----------------------------------------------------------+-----------------------+
-    | "class A{};\nclass B : public A{};"                      | ".A <@-- .B\n"        |
-    +----------------------------------------------------------+-----------------------+
-    | "class B{};\nclass A{B obj;};"                           | ".A \*-- .B\n"        |
-    +----------------------------------------------------------+-----------------------+
-    | "class B{};\nclass A{B\* obj;};"                         | ".A o-- .B\n"         |
-    +----------------------------------------------------------+-----------------------+
-    | "class B{};\nclass A{B \* obj\_ptr; B\* ptr;};"          | ".A \\"2\\" o-- .B\n" |
-    +----------------------------------------------------------+-----------------------+
-    | "class A{};\nclass B{void Method(A\* obj);};"            | ".A <.. .B\n"         |
-    +----------------------------------------------------------+-----------------------+
-    | "namespace T {class A{}; class B: A{};};"                | "T.A <@-- T.B\n"      |
-    +----------------------------------------------------------+-----------------------+
-    | "namespace T {\nclass A{};};\nclass B{T\:\:A\* \_obj;};" | ".B o-- T.A\n"        |
-    +----------------------------------------------------------+-----------------------+
+    +----------------------------------------------------------+---------------------+
+    | C++                                                      | plantuml            |
+    +==========================================================+=====================+
+    | "class A{};\nclass B : A{};"                             | "A <@-- B\n"        |
+    +----------------------------------------------------------+---------------------+
+    | "class A{};\nclass B : public A{};"                      | "A <@-- B\n"        |
+    +----------------------------------------------------------+---------------------+
+    | "class B{};\nclass A{B obj;};"                           | "A \*-- B\n"        |
+    +----------------------------------------------------------+---------------------+
+    | "class B{};\nclass A{B\* obj;};"                         | "A o-- B\n"         |
+    +----------------------------------------------------------+---------------------+
+    | "class B{};\nclass A{B \* obj\_ptr; B\* ptr;};"          | "A \\"2\\" o-- B\n" |
+    +----------------------------------------------------------+---------------------+
+    | "class A{};\nclass B{void Method(A\* obj);};"            | "A <.. B\n"         |
+    +----------------------------------------------------------+---------------------+
+    | "namespace T {class A{}; class B: A{};};"                | "T.A <@-- T.B\n"    |
+    +----------------------------------------------------------+---------------------+
+    | "namespace T {\nclass A{};};\nclass B{T\:\:A\* \_obj;};" | "B o-- T.A\n"       |
+    +----------------------------------------------------------+---------------------+
 
 
 .. code:: python
@@ -2761,13 +2761,13 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Inheritance relationships '/
 
-    first_ns.second_ns.A <|-- .Class03
+    first_ns.second_ns.A <|-- Class03
 
 
-    .Class01 <|-- .Class02
+    Class01 <|-- Class02
 
 
-    .Class02 <|-- first_ns.second_ns.A
+    Class02 <|-- first_ns.second_ns.A
 
 
     Interface.Class04 <|-- Interface.Class04_derived
@@ -2781,16 +2781,16 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Aggregation relationships '/
 
-    .Class03 "2" o-- .Class01
+    Class03 "2" o-- Class01
 
 
-    .Class03 *-- .Class02
+    Class03 *-- Class02
 
 
-    Interface.Class04 o-- .Class01
+    Interface.Class04 o-- Class01
 
 
-    Interface.Class04 *-- .Enum01
+    Interface.Class04 *-- Enum01
 
 
     Interface.NestedNamespace.Class04_ns *-- Interface.Enum
@@ -2805,7 +2805,7 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Dependency relationships '/
 
-    Interface.Class04 <.. .Class03
+    Interface.Class04 <.. Class03
 
 
 
@@ -2814,13 +2814,13 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Nested objects '/
 
-    .Class02 +-- .Class02::ClassNested
+    Class02 +-- Class02::ClassNested
 
 
-    .anon_union_1 +-- .anon_union_1::anon_struct_1
+    anon_union_1 +-- anon_union_1::anon_struct_1
 
 
-    .anon_union_1 +-- .anon_union_1::anon_struct_2
+    anon_union_1 +-- anon_union_1::anon_struct_2
 
 
 
@@ -2954,13 +2954,13 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Inheritance relationships '/
 
-    first_ns.second_ns.A <|-- .Class03
+    first_ns.second_ns.A <|-- Class03
 
 
-    .Class01 <|-- .Class02
+    Class01 <|-- Class02
 
 
-    .Class02 <|-- first_ns.second_ns.A
+    Class02 <|-- first_ns.second_ns.A
 
 
     Interface.Class04 <|-- Interface.Class04_derived
@@ -2974,16 +2974,16 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Aggregation relationships '/
 
-    .Class03 "2" o-- .Class01
+    Class03 "2" o-- Class01
 
 
-    .Class03 *-- .Class02
+    Class03 *-- Class02
 
 
-    Interface.Class04 o-- .Class01
+    Interface.Class04 o-- Class01
 
 
-    Interface.Class04 *-- .Enum01
+    Interface.Class04 *-- Enum01
 
 
     Interface.NestedNamespace.Class04_ns *-- Interface.Enum
@@ -2998,13 +2998,13 @@ The comparison takes into account the white space, indentation, etc.
 
     /' Nested objects '/
 
-    .Class02 +-- .Class02::ClassNested
+    Class02 +-- Class02::ClassNested
 
 
-    .anon_union_1 +-- .anon_union_1::anon_struct_1
+    anon_union_1 +-- anon_union_1::anon_struct_1
 
 
-    .anon_union_1 +-- .anon_union_1::anon_struct_2
+    anon_union_1 +-- anon_union_1::anon_struct_2
 
 
 
