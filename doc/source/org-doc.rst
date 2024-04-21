@@ -13,7 +13,8 @@ The current version of the code is:
 ::
     :name: hpp2plantuml-version
 
-    0.2
+    0.8.4
+
 
 The source code can be found on GitHub:
 `https://github.com/thibaultmarin/hpp2plantuml <https://github.com/thibaultmarin/hpp2plantuml>`_.
@@ -40,7 +41,9 @@ hierarchies.  It aims at supporting:
 
 - aggregation relationships (very basic support).
 
-The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+- dependency relationships
+
+The package relies on the `CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ package for parsing of C++ header
 files.
 
 License
@@ -79,16 +82,18 @@ Requirements
 ------------
 
 This module has mostly standard dependencies; the only exception is the
-`CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ module used to parse header files.
+`CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ module used to parse header files.
 
 .. table:: List of dependencies.
     :name: py-dependency-list
 
-    +-----------------+
-    | argparse        |
-    +-----------------+
-    | CppHeaderParser |
-    +-----------------+
+    +-------------------------+-----------------+
+    | argparse                | argparse        |
+    +-------------------------+-----------------+
+    | robotpy-cppheaderparser | CppHeaderParser |
+    +-------------------------+-----------------+
+    | jinja2                  | jinja2          |
+    +-------------------------+-----------------+
 
 The full list of non-standard dependencies is produced by the following source
 block (returning either imports or a dependency list used in `sec-package-setup-py`_):
@@ -99,7 +104,7 @@ block (returning either imports or a dependency list used in `sec-package-setup-
     (cond
      ((string= output "import")
       (mapconcat
-       (lambda (el) (concat "import " (car el))) dep-list "\n"))
+       (lambda (el) (concat "import " (cadr el))) dep-list "\n"))
      ((string= output "requirements")
       (concat "["
               (mapconcat
@@ -111,12 +116,14 @@ block (returning either imports or a dependency list used in `sec-package-setup-
 
     # %% Imports
 
+    import os
     import re
     import glob
     import argparse
     import CppHeaderParser
+    import jinja2
 
-The tests rely on the `nosetest <http://nose.readthedocs.io/en/latest/>`_ framework and the package documentation is built
+The tests rely on the `pytest <https://docs.pytest.org/en/7.3.x/>`_ framework and the package documentation is built
 with `Sphinx <http://sphinx-doc.org>`_.
 
 .. _sec-module:
@@ -173,18 +180,19 @@ of elementary properties and links.
     LINK_TYPE_MAP = {
         'inherit': '<|--',
         'aggregation': 'o--',
-        'composition': '*--'
+        'composition': '*--',
+        'dependency': '<..',
+        'nesting': '+--'
     }
 
-    # Assiocation between object names and objects
+    # Association between object names and objects
     # - The first element is the object type name in the CppHeader object
     # - The second element is the iterator used to loop over objects
     # - The third element is a function returning the corresponding internal object
-    CONTAINER_TYPE_MAP = [
-        ['classes', lambda objs: objs.items(), lambda obj: Class(obj)],
-        ['structs', lambda objs: objs.items(), lambda obj: Struct(obj)],
-        ['enums', lambda objs: objs, lambda obj: Enum(obj)]
-    ]
+    CONTAINER_TYPE_MAP = {
+        'classes': [lambda objs: objs.items(), lambda obj: Class(obj)],
+        'enums': [lambda objs: objs, lambda obj: Enum(obj)]
+    }
 
 Objects
 ~~~~~~~
@@ -208,7 +216,8 @@ Base class
 C++ objects are represented by objects derived from the base ``Container`` class.
 The ``Container`` class is abstract and contains:
 
-- the container type (``class``, ``enum``, ``struct``),
+- the container type (``class``, ``enum``, ``struct`` objects are handled as ``class``
+  objects),
 
 - the object name,
 
@@ -241,13 +250,16 @@ The ``Container`` class is abstract and contains:
                 String representation of container type (``class``, ``struct`` or
                 ``enum``)
             name : str
-                Object name
+                Object name (with ``<``, ``>`` characters removed)
             """
             self._container_type = container_type
-            self._name = name
+            self._name = re.sub('[<>]', '', re.sub('-', '_', name))
             self._member_list = []
+            self._namespace = ''
+            self._parent = None
 
-        def get_name(self):
+        @property
+        def name(self):
             """Name property accessor
 
             Returns
@@ -258,6 +270,35 @@ The ``Container`` class is abstract and contains:
             return self._name
 
         def parse_members(self, header_container):
+            """Initialize object from header
+
+            Extract object from CppHeaderParser dictionary representing a class, a
+            struct or an enum object.  This extracts the namespace.  Use the
+            ``parent`` field to determine is the ``namespace`` description from
+            ``CppHeaderParser`` is a parent object (e.g. class) or a proper
+            ``namespace``.
+
+            Parameters
+            ----------
+            header_container : CppClass or CppEnum
+                Parsed header for container
+            """
+            namespace = header_container.get('namespace', '')
+            if namespace:
+                parent = header_container.get('parent', None)
+                # Presence of namespace and parent fields indicates a nested class
+                if not parent:
+                    self._namespace = _cleanup_namespace(namespace)
+                else:
+                    #self._parent = re.sub('[<>]', '', parent['name'])
+                    self._parent = '::'.join(self._name.split('::')[:-1])
+                    p = parent
+                    while p.get('parent') is not None:
+                        p = p.get('parent', None)
+                    self._namespace = p['namespace']
+            self._do_parse_members(header_container)
+
+        def _do_parse_members(self, header_container):
             """Initialize object from header (abstract method)
 
             Extract object from CppHeaderParser dictionary representing a class, a
@@ -265,11 +306,11 @@ The ``Container`` class is abstract and contains:
 
             Parameters
             ----------
-            header_container : CppClass, CppStruct or CppEnum
+            header_container : CppClass or CppEnum
                 Parsed header for container
             """
             raise NotImplementedError(
-                'Derived class must implement :func:`parse_members`.')
+                'Derived class must implement :func:`_do_parse_members`.')
 
         def render(self):
             """Render object to string
@@ -407,21 +448,22 @@ which is used to determine aggregation relationships between classes.
 
             Parameters
             ----------
-            header_class : list (str, CppClass)
+            header_class : tuple(str, CppClass)
                 Parsed header for class object (two-element list where the first
                 element is the class name and the second element is a CppClass
                 object)
             """
-            super().__init__('class', header_class[0])
+            super().__init__(header_class[1]['declaration_method'], header_class[0])
             self._abstract = header_class[1]['abstract']
             self._template_type = None
             if 'template' in header_class[1]:
-                self._template_type = header_class[1]['template']
+                self._template_type = _cleanup_single_line(
+                    header_class[1]['template'])
             self._inheritance_list = [re.sub('<.*>', '', parent['class'])
                                       for parent in header_class[1]['inherits']]
             self.parse_members(header_class[1])
 
-        def parse_members(self, header_class):
+        def _do_parse_members(self, header_class):
             """Initialize class object from header
 
             This method extracts class member variables and methods from header.
@@ -439,8 +481,9 @@ which is used to determine aggregation relationships between classes.
                 for member_prop in MEMBER_PROP_MAP.keys():
                     member_list = header_class[member_type][member_prop]
                     for header_member in member_list:
-                        self._member_list.append(
-                            member_type_handler(header_member, member_prop))
+                        if not header_member.get('deleted', False):
+                            self._member_list.append(
+                                member_type_handler(header_member, member_prop))
 
         def build_variable_type_list(self):
             """Get type of member variables
@@ -473,14 +516,19 @@ which is used to determine aggregation relationships between classes.
             """Create the string representation of the class
 
             Return the class name with template and abstract properties if
-            present.  The output string follows the PlantUML syntax.
+            present.  The output string follows the PlantUML syntax.  Note that
+            ``struct`` and ``union`` types are rendered as ``classes``.
 
             Returns
             -------
             str
                 String representation of class
             """
-            class_str = self._container_type + ' ' + self._name
+            if self._container_type in ['struct', 'union']:
+                container_type = 'class'
+            else:
+                container_type = self._container_type
+            class_str = container_type + ' ' + self._name
             if self._abstract:
                 class_str = 'abstract ' + class_str
             if self._template_type is not None:
@@ -600,12 +648,15 @@ to the `sec-module-class-member`_.
             member_scope : str
                 Scope property to member variable
             """
-            assert(isinstance(class_variable,
-                              CppHeaderParser.CppHeaderParser.CppVariable))
+            assert isinstance(class_variable,
+                              CppHeaderParser.CppHeaderParser.CppVariable)
 
             super().__init__(class_variable, member_scope)
 
             self._type = _cleanup_type(class_variable['type'])
+            if class_variable.get('array', 0):
+                self._type += '[]'
+
 
         def get_type(self):
             """Variable type accessor
@@ -661,8 +712,8 @@ implemented in the future.
                 Scope of the member method
 
             """
-            assert(isinstance(class_method,
-                              CppHeaderParser.CppHeaderParser.CppMethod))
+            assert isinstance(class_method,
+                              CppHeaderParser.CppHeaderParser.CppMethod)
 
             super().__init__(class_method, member_scope)
 
@@ -693,7 +744,7 @@ implemented in the future.
                 The method name (prefixed with the ``abstract`` keyword when
                 appropriate) and signature
             """
-            assert(not self._static or not self._abstract)
+            assert not self._static or not self._abstract
 
             method_str = ('{abstract} ' if self._abstract else '') + \
                          self._name + '(' + \
@@ -701,38 +752,6 @@ implemented in the future.
                                    for it in self._param_list) + ')'
 
             return method_str
-
-Structures
-^^^^^^^^^^
-
-While ``struct`` objects are currently not supported, their addition should be
-relatively straightforward and the ``Struct`` class may simply inherit from the
-``Class`` class.  The following should give a starting point.
-
-.. code:: python
-    :name: py-render-structs
-
-    # %% Struct object
-
-
-    class Struct(Class):
-        """Representation of C++ struct objects
-
-        This class derived is almost identical to `Class`, the only difference
-        being the container type name ("struct" instead of "class").
-        """
-        def __init__(self, header_struct):
-            """Class constructor
-
-            Parameters
-            ----------
-            header_struct : list (str, CppStruct)
-                Parsed header for struct object (two-element list where the first
-                element is the structure name and the second element is a CppStruct
-                object)
-            """
-            super().__init__(header_struct[0])
-            super(Class).__init__('struct')
 
 Enumeration lists
 ^^^^^^^^^^^^^^^^^
@@ -748,12 +767,12 @@ the actual values.
 
 
     class Enum(Container):
-        """Class represnting enum objects
+        """Class representing enum objects
 
         This class defines a simple object inherited from the base `Container`
         class.  It simply lists enumerated values.
         """
-        def __init__(self, header_enum):
+        def __init__(self, header_enum, parent=None):
             """Constructor
 
             Parameters
@@ -761,10 +780,12 @@ the actual values.
             header_enum : CppEnum
                 Parsed CppEnum object
             """
-            super().__init__('enum', header_enum['name'])
+            super().__init__('enum', header_enum.get('name', 'empty'))
             self.parse_members(header_enum)
+            if parent:
+                self._parent = parent
 
-        def parse_members(self, header_enum):
+        def _do_parse_members(self, header_enum):
             """Extract enum values from header
 
             Parameters
@@ -772,7 +793,7 @@ the actual values.
             header_enum : CppEnum
                 Parsed `CppEnum` object
             """
-            for value in header_enum['values']:
+            for value in header_enum.get('values', []):
                 self._member_list.append(EnumValue(value['name']))
 
 
@@ -803,6 +824,52 @@ the actual values.
                 The enumeration element name
             """
             return self._name
+
+Namespace
+^^^^^^^^^
+
+C++ namespaces are represented by the ``Namespace`` class.  It simply contains a
+list of objects and wraps the objects in a ``namespace`` block on rendering.
+
+.. code:: python
+    :name: py-render-classes
+
+    # %% Class object
+
+
+    class Namespace(list):
+        """Representation of C++ namespace
+
+        This class lists other containers or namespaces and wraps the rendered
+        output in a ``namespace`` block.
+        """
+        def __init__(self, name, *args):
+            """Constructor
+
+            Parameters
+            ----------
+            name : str
+                Namespace name
+            """
+            self._name = name
+            super().__init__(*args)
+
+        def render(self):
+            """Render namespace content
+
+            Render the elements and wrap the result in a ``namespace`` block
+
+            Returns
+            -------
+            str
+                String representation of namespace in PlantUML syntax
+            """
+            if self._name:
+                name = self._name.split('::')[-1]
+            else:
+                name = self._name
+            return wrap_namespace('\n'.join([c.render()
+                                             for c in self]), name)
 
 .. _sec-module-relationship:
 
@@ -840,14 +907,16 @@ strings and the text representation of a connection link is obtained from the
             ----------
             link_type : str
                 Relationship type: ``inherit`` or ``aggregation``
-            c_parent : str
-                Name of parent class
-            c_child : str
-                Name of child class
+            c_parent : Container
+                Parent container
+            c_child : Container
+                Child container
             """
-            self._parent = c_parent
-            self._child = c_child
+            self._parent = c_parent.name
+            self._child = c_child.name
             self._link_type = link_type
+            self._parent_namespace = c_parent._namespace or ''
+            self._child_namespace = c_child._namespace or ''
 
         def comparison_keys(self):
             """Order comparison key between `ClassRelationship` objects
@@ -862,6 +931,25 @@ strings and the text representation of a connection link is obtained from the
             """
             return self._parent, self._child, self._link_type
 
+        def _render_name(self, class_name, class_namespace):
+            """Render class name with namespace prefix if necessary
+
+            Parameters
+            ----------
+            class_name : str
+               Name of the class
+            class_namespace : str
+                Namespace or None if the class is defined in the default namespace
+
+            Returns
+            -------
+            str
+                Class name with appropriate prefix for use with link rendering
+            """
+            if class_namespace:
+                return get_namespace_link_name(class_namespace) + '.' + class_name
+            return class_name
+
         def render(self):
             """Render class relationship to string
 
@@ -875,8 +963,17 @@ strings and the text representation of a connection link is obtained from the
                 The string representation of the class relationship following the
                 PlantUML syntax
             """
-            return self._parent + ' ' + self._render_link_type() + \
-                ' ' + self._child
+            link_str = ''
+
+            # Prepend the namespace to the class name
+            parent_str = self._render_name(self._parent, self._parent_namespace)
+            child_str = self._render_name(self._child, self._child_namespace)
+
+            # Link string
+            link_str += (parent_str + ' ' + self._render_link_type() + ' ' +
+                         child_str + '\n')
+
+            return link_str
 
         def _render_link_type(self):
             """Internal representation of link
@@ -910,7 +1007,7 @@ The inheritance relationship is a straightforward specialization of the base
         This module extends the base `ClassRelationship` class by setting the link
         type to ``inherit``.
         """
-        def __init__(self, c_parent, c_child):
+        def __init__(self, c_parent, c_child, **kwargs):
             """Constructor
 
             Parameters
@@ -919,16 +1016,21 @@ The inheritance relationship is a straightforward specialization of the base
                 Parent class
             c_child : str
                 Derived class
+            kwargs : dict
+                Additional parameters passed to parent class
             """
-            super().__init__('inherit', c_parent, c_child)
+            super().__init__('inherit', c_parent, c_child, **kwargs)
 
-Aggregation
-:::::::::::
+Aggregation / Composition
+:::::::::::::::::::::::::
 
 The aggregation relationship specializes the base ``ClassRelationship`` class by
-using the "aggregation" link type and adding a ``count`` field used to add a label
-with the number of instances of the parent class in the PlantUML diagram (the
-count is omitted when equal to one).
+using the "aggregation" or "composition" link type and adding a ``count`` field
+used to add a label with the number of instances of the parent class in the
+PlantUML diagram (the count is omitted when equal to one).  The difference
+between aggregation and composition is mainly in the ownership of the member
+variable.  A raw pointer is interpreted as an aggregation relationship while any
+other container is interpreted as a composition relationship.
 
 .. code:: python
     :name: py-class_aggregation
@@ -947,21 +1049,26 @@ count is omitted when equal to one).
         variable type (possibly within a container such as a list) in a class
         definition.
         """
-        def __init__(self, c_parent, c_child, c_count=1):
+        def __init__(self, c_object, c_container, c_count=1,
+                     rel_type='aggregation', **kwargs):
             """Constructor
 
             Parameters
             ----------
-            c_parent : str
+            c_object : str
                 Class corresponding to the type of the member variable in the
                 aggregation relationship
-            c_child : str
+            c_container : str
                 Child (or client) class of the aggregation relationship
-            c_cout : int
-                The number of members of ``c_child`` that are of type (possibly
-                through containers) ``c_parent``
+            c_count : int
+                The number of members of ``c_container`` that are of type (possibly
+                through containers) ``c_object``
+            rel_type : str
+                Relationship type: ``aggregation`` or ``composition``
+            kwargs : dict
+                Additional parameters passed to parent class
             """
-            super().__init__('aggregation', c_parent, c_child)
+            super().__init__(rel_type, c_object, c_container, **kwargs)
             self._count = c_count
 
         def _render_link_type(self):
@@ -973,6 +1080,73 @@ count is omitted when equal to one).
             """
             count_str = '' if self._count == 1 else '"%d" ' % self._count
             return count_str + LINK_TYPE_MAP[self._link_type]
+
+Dependency
+::::::::::
+
+The dependency relationship is not directly extracted from C++ code, but it can
+be manipulated when using the ``Diagram`` object.  In PlantUML, it corresponds to
+the ``<..`` link type (`http://plantuml.com/class-diagram <http://plantuml.com/class-diagram>`_).
+
+.. code:: python
+    :name: py-class_dependency
+
+    # %% Class dependency
+
+
+    class ClassDependencyRelationship(ClassRelationship):
+        """Dependency relationship
+
+        Dependencies occur when member methods depend on an object of another class
+        in the diagram.
+        """
+        def __init__(self, c_parent, c_child, **kwargs):
+            """Constructor
+
+            Parameters
+            ----------
+            c_parent : str
+                Class corresponding to the type of the member variable in the
+                dependency relationship
+            c_child : str
+                Child (or client) class of the dependency relationship
+            kwargs : dict
+                Additional parameters passed to parent class
+            """
+            super().__init__('dependency', c_parent, c_child, **kwargs)
+
+Nesting
+:::::::
+
+The nesting relationship handles nested objects (classes, enums).  In PlantUML,
+it corresponds to the ``+..`` link type (`http://plantuml.com/class-diagram <http://plantuml.com/class-diagram>`_).
+
+.. code:: python
+    :name: py-class_nesting
+
+    # %% Nested class
+
+
+    class ClassNestingRelationship(ClassRelationship):
+        """Nesting relationship
+
+        Dependencies occur when member methods depend on an object of another class
+        in the diagram.
+        """
+        def __init__(self, c_parent, c_child, **kwargs):
+            """Constructor
+
+            Parameters
+            ----------
+            c_parent : str
+                Class corresponding to the type of the member variable in the
+                nesting relationship
+            c_child : str
+                Child (or client) class of the dependency relationship
+            kwargs : dict
+                Additional parameters passed to parent class
+            """
+            super().__init__('nesting', c_parent, c_child, **kwargs)
 
 .. _sec-module-diagram:
 
@@ -1058,7 +1232,7 @@ be used to avoid this sorting step.
     class Diagram(object):
         """UML diagram object
 
-        This class lists the objects in the set of files considere, and the
+        This class lists the objects in the set of files considered, and the
         relationships between object.
 
         The main interface to the `Diagram` object is via the ``create_*`` and
@@ -1069,19 +1243,32 @@ be used to avoid this sorting step.
         Each method has versions for file and string inputs and folder string lists
         and file lists inputs.
         """
-        def __init__(self):
+        def __init__(self, template_file=None, flag_dep=False):
             """Constructor
 
             The `Diagram` class constructor simply initializes object lists.  It
             does not create objects or relationships.
             """
+            self._flag_dep = flag_dep
+            self.clear()
+            loader_list = []
+            if template_file is not None:
+                loader_list.append(jinja2.FileSystemLoader(
+                    os.path.abspath(os.path.dirname(template_file))))
+                self._template_file = os.path.basename(template_file)
+            else:
+                self._template_file = 'default.puml'
+            loader_list.append(jinja2.PackageLoader('hpp2plantuml', 'templates'))
+            self._env = jinja2.Environment(loader=jinja2.ChoiceLoader(
+                loader_list), keep_trailing_newline=True)
+
+        def clear(self):
+            """Reinitialize object"""
             self._objects = []
             self._inheritance_list = []
             self._aggregation_list = []
-
-        def clear(self):
-            """Reinitiliaze object"""
-            self.__init__()
+            self._dependency_list = []
+            self._nesting_list = []
 
         def _sort_list(input_list):
             """Sort list using `ClassRelationship` comparison
@@ -1106,24 +1293,26 @@ be used to avoid this sorting step.
                 obj.sort_members()
             Diagram._sort_list(self._inheritance_list)
             Diagram._sort_list(self._aggregation_list)
+            Diagram._sort_list(self._dependency_list)
+            Diagram._sort_list(self._nesting_list)
 
-        def _build_helper(self, input, build_from='string', flag_build_lists=True,
+        def _build_helper(self, data_in, build_from='string', flag_build_lists=True,
                           flag_reset=False):
             """Helper function to initialize a `Diagram` object from parsed headers
 
             Parameters
             ----------
-            input : CppHeader or str or list(CppHeader) or list(str)
+            data_in : CppHeader or str or list(CppHeader) or list(str)
                 Input of arbitrary type.  The processing depends on the
                 ``build_from`` parameter
             build_from : str
-                Determines the type of the ``input`` variable:
+                Determines the type of the ``data_in`` variable:
 
-                * ``string``: ``input`` is a string containing C++ header code
-                * ``file``: ``input`` is a filename to parse
-                * ``string_list``: ``input`` is a list of strings containing C++
+                * ``string``: ``data_in`` is a string containing C++ header code
+                * ``file``: ``data_in`` is a filename to parse
+                * ``string_list``: ``data_in`` is a list of strings containing C++
                   header code
-                * ``file_list``: ``input`` is a list of filenames to parse
+                * ``file_list``: ``data_in`` is a list of filenames to parse
 
             flag_build_lists : bool
                 When True, relationships lists are built and the objects in the
@@ -1136,10 +1325,10 @@ be used to avoid this sorting step.
             if flag_reset:
                 self.clear()
             if build_from in ('string', 'file'):
-                self.parse_objects(input, build_from)
+                self.parse_objects(data_in, build_from)
             elif build_from in ('string_list', 'file_list'):
                 build_from_single = re.sub('_list$', '', build_from)
-                for single_input in input:
+                for single_input in data_in:
                     self.parse_objects(single_input, build_from_single)
             if flag_build_lists:
                 self.build_relationship_lists()
@@ -1230,6 +1419,9 @@ be used to avoid this sorting step.
             """
             self.build_inheritance_list()
             self.build_aggregation_list()
+            self.build_nesting_list()
+            if self._flag_dep:
+                self.build_dependency_list()
 
         def parse_objects(self, header_file, arg_type='string'):
             """Parse objects
@@ -1243,17 +1435,63 @@ be used to avoid this sorting step.
                 A string containing C++ header code or a filename with C++ header
                 code
             arg_type : str
-                It set to ``string``, ``header_file`` is considered to be a string,
+                If set to ``string``, ``header_file`` is considered to be a string,
                 otherwise, it is assumed to be a filename
             """
             # Parse header file
             parsed_header = CppHeaderParser.CppHeader(header_file,
                                                       argType=arg_type)
-            for container_type, container_iterator, \
-                container_handler in CONTAINER_TYPE_MAP:
+            for container_type, (container_iterator,
+                                 container_handler) in CONTAINER_TYPE_MAP.items():
                 objects = parsed_header.__getattribute__(container_type)
                 for obj in container_iterator(objects):
-                    self._objects.append(container_handler(obj))
+                    # Parse container
+                    obj_c = container_handler(obj)
+                    self._objects.append(obj_c)
+                    # Look for nested enums
+                    # Find value from iterator (may be a tuple)
+                    if isinstance(obj, tuple) and len(obj) == 2:
+                        obj_n = obj[-1]
+                    else:
+                        obj_n = obj
+                    if 'enums' in obj_n:
+                        for m in MEMBER_PROP_MAP.keys():
+                            for enum in obj_n['enums'][m]:
+                                enum_c = Enum(enum, parent=obj_c.name)
+                                # Adjust name to reflect nesting
+                                enum_c._name = obj_c.name + '::' + enum_c._name
+                                self._objects.append(enum_c)
+
+        def _make_class_list(self):
+            """Build list of classes
+
+            Returns
+            -------
+            list(dict)
+                Each entry is a dictionary with keys ``name`` (class name) and
+                ``obj`` the instance of the `Class` class
+            """
+            return [{'name': obj.name, 'obj': obj}
+                    for obj in self._objects if isinstance(obj, (Class, Enum))]
+
+        def _get_class_list(self):
+            """Build list of classes in diagram
+
+            Returns
+            -------
+            list
+                Class object list (returned by :func:`_make_class_list`)
+            list
+                Class names
+            bool
+                True when at least one container is a namespace
+            """
+            class_list_obj = self._make_class_list()
+            class_list_ns = [(c['obj']._namespace + '::'
+                              if c['obj']._namespace else '') + c['name']
+                             for c in class_list_obj]
+            class_list = [c['name'] for c in class_list_obj]
+            return class_list_obj, class_list, class_list_ns
 
         def build_inheritance_list(self):
             """Build list of inheritance between objects
@@ -1263,24 +1501,31 @@ be used to avoid this sorting step.
 
             The implementation establishes a list of available classes and loops
             over objects to obtain their inheritance.  When parent classes are in
-            the list of available classes, their a `ClassInheritanceRelationship`
-            object is added to the list.
+            the list of available classes, a `ClassInheritanceRelationship` object
+            is added to the list.
             """
             self._inheritance_list = []
             # Build list of classes in diagram
-            class_list = [obj.get_name() for obj in self._objects
-                          if isinstance(obj, Class)]
+            class_list_obj, class_list, class_list_ns = self._get_class_list()
 
             # Create relationships
 
             # Inheritance
             for obj in self._objects:
-                obj_name = obj.get_name()
+                obj_name = obj.name
                 if isinstance(obj, Class):
                     for parent in obj.build_inheritance_list():
+                        parent_obj = None
                         if parent in class_list:
+                            parent_obj = class_list_obj[
+                                class_list.index(parent)]['obj']
+                        elif parent in class_list_ns:
+                            parent_obj = class_list_obj[
+                                class_list_ns.index(parent)]['obj']
+                        if parent_obj is not None:
                             self._inheritance_list.append(
-                                ClassInheritanceRelationship(parent, obj_name))
+                                ClassInheritanceRelationship(
+                                    parent_obj, obj))
 
         def build_aggregation_list(self):
             """Build list of aggregation relationships
@@ -1289,20 +1534,19 @@ be used to avoid this sorting step.
             corresponding to other classes defined in the `Diagram` object (keeping
             a count of occurrences).
 
-            The procedure first build an internal dictionary of relationships
+            The procedure first builds an internal dictionary of relationships
             found, augmenting the count using the :func:`_augment_comp` function.
             In a second phase, `ClassAggregationRelationship` objects are created
             for each relationships, using the calculated count.
             """
             self._aggregation_list = []
-            # Build list of classes in diagram
-            class_list = [obj.get_name() for obj in self._objects
-                          if isinstance(obj, Class)]
+             # Build list of classes in diagram
+            class_list_obj, class_list, class_list_ns = self._get_class_list()
 
             # Build member type list
             variable_type_list = {}
             for obj in self._objects:
-                obj_name = obj.get_name()
+                obj_name = obj.name
                 if isinstance(obj, Class):
                     variable_type_list[obj_name] = obj.build_variable_type_list()
             # Create aggregation links
@@ -1312,17 +1556,95 @@ be used to avoid this sorting step.
                 if child_class in variable_type_list.keys():
                     var_types = variable_type_list[child_class]
                     for var_type in var_types:
-                        for parent in class_list:
+                        for parent in class_list or parent in class_list_ns:
                             if re.search(r'\b' + parent + r'\b', var_type):
+                                rel_type = 'composition'
+                                if '{}*'.format(parent) in var_type:
+                                    rel_type = 'aggregation'
                                 self._augment_comp(aggregation_counts, parent,
-                                                   child_class)
+                                                   child_class, rel_type=rel_type)
             for obj_class, obj_comp_list in aggregation_counts.items():
-                for comp_parent, comp_count in obj_comp_list:
+                for comp_parent, rel_type, comp_count in obj_comp_list:
+                    if obj_class in class_list:
+                        obj_class_idx = class_list.index(obj_class)
+                        comp_parent_idx = class_list.index(comp_parent)
+                    elif obj_class in class_list_ns:
+                        obj_class_idx = class_list_ns.index(obj_class)
+                        comp_parent_idx = class_list_ns.index(comp_parent)
+                    obj_class_obj = class_list_obj[obj_class_idx]['obj']
+                    comp_parent_obj = class_list_obj[comp_parent_idx]['obj']
                     self._aggregation_list.append(
-                        ClassAggregationRelationship(obj_class, comp_parent,
-                                                     comp_count))
+                        ClassAggregationRelationship(
+                            obj_class_obj, comp_parent_obj, comp_count,
+                            rel_type=rel_type))
 
-        def _augment_comp(self, c_dict, c_parent, c_child):
+        def build_dependency_list(self):
+            """Build list of dependency between objects
+
+            This method lists all the dependency relationships between objects
+            contained in the `Diagram` object (external relationships are ignored).
+
+            The implementation establishes a list of available classes and loops
+            over objects, list their methods adds a dependency relationship when a
+            method takes an object as input.
+            """
+
+            self._dependency_list = []
+            class_list_obj, class_list, class_list_ns = self._get_class_list()
+
+            # Create relationships
+
+            # Add all objects name to list
+            objects_name = []
+            for obj in self._objects:
+                objects_name.append(obj.name)
+
+            # Dependency
+            for obj in self._objects:
+                if isinstance(obj, Class):
+                    for member in obj._member_list:
+                        # Check if the member is a method
+                        if isinstance(member, ClassMethod):
+                            for method in member._param_list:
+                                index = ValueError
+                                try:
+                                    # Check if the method param type is a Class
+                                    # type
+                                    index = [re.search(o, method[0]) is not None
+                                             for o in objects_name].index(True)
+                                except ValueError:
+                                    pass
+                                if index != ValueError and method[0] != obj.name:
+                                    depend_obj = self._objects[index]
+
+                                    self._dependency_list.append(
+                                        ClassDependencyRelationship(
+                                            depend_obj, obj))
+
+        def build_nesting_list(self):
+            """Build list of nested objects
+
+            """
+            self._nesting_list = []
+            # Build list of classes in diagram
+            class_list_obj, class_list, class_list_ns = self._get_class_list()
+
+            for obj in self._objects:
+                obj_name = obj.name
+                if isinstance(obj, (Class, Enum)):
+                    parent = obj._parent
+                    parent_obj = None
+                    if parent and parent in class_list:
+                        parent_obj = class_list_obj[
+                            class_list.index(parent)]['obj']
+                    elif parent and parent in class_list_ns:
+                        parent_obj = class_list_obj[
+                            class_list_ns.index(parent)]['obj']
+                    if parent_obj is not None:
+                        self._nesting_list.append(ClassNestingRelationship(
+                            parent_obj, obj))
+
+        def _augment_comp(self, c_dict, c_parent, c_child, rel_type='aggregation'):
             """Increment the aggregation reference count
 
             If the aggregation relationship is not in the list (``c_dict``), then
@@ -1338,16 +1660,18 @@ be used to avoid this sorting step.
                 Parent class name
             c_child : str
                 Child class name
+            rel_type : str
+                Relationship type: ``aggregation`` or ``composition``
             """
             if c_child not in c_dict:
-                c_dict[c_child] = [[c_parent, 1], ]
+                c_dict[c_child] = [[c_parent, rel_type, 1], ]
             else:
-                parent_list = [c[0] for c in c_dict[c_child]]
-                if c_parent not in parent_list:
-                    c_dict[c_child].append([c_parent, 1])
+                parent_list = [c[:2] for c in c_dict[c_child]]
+                if [c_parent, rel_type] not in parent_list:
+                    c_dict[c_child].append([c_parent, rel_type, 1])
                 else:
-                    c_idx = parent_list.index(c_parent)
-                    c_dict[c_child][c_idx][1] += 1
+                    c_idx = parent_list.index([c_parent, rel_type])
+                    c_dict[c_child][c_idx][2] += 1
 
         def render(self):
             """Render full UML diagram
@@ -1363,53 +1687,60 @@ be used to avoid this sorting step.
                 String containing the full string representation of the `Diagram`
                 object, including objects and object relationships
             """
-            # Preamble
-            diagram_str = self._preamble()
-
-            # Objects
+            template = self._env.get_template(self._template_file)
+            # List namespaces
+            ns_list_in = []
             for obj in self._objects:
-                diagram_str += obj.render() + '\n'
-
-            # Inheritance
-            for inherit in self._inheritance_list:
-                diagram_str += inherit.render() + '\n'
-
-            # Aggregation
-            for comp in self._aggregation_list:
-                diagram_str += comp.render() + '\n'
-
-            # Postamble
-            diagram_str += self._postamble()
-
-            return diagram_str
-
-        def _preamble(self):
-            """PlantUML preamble text
-
-            Returns
-            -------
-            str
-                The PlantUML preamble text: ``@startuml``
-            """
-            return '@startuml\n'
-
-        def _postamble(self):
-            """PlantUML postamble text
-
-            Returns
-            -------
-            str
-                The PlantUML postamble text: ``@enduml``
-            """
-            return '\n@enduml\n'
+                if obj._namespace and obj._namespace not in ns_list_in:
+                    ns_list_in.append(obj._namespace)
+            # Add empty namespaces
+            ns_list = []
+            for ns in ns_list_in:
+                ns_list.append(ns)
+                ns_split = ns.split('::')
+                for ni in range(1, len(ns_split)):
+                    ns_pre = '::'.join(ns_split[:ni])
+                    if ns_pre not in ns_list_in:
+                        ns_list.append(ns_pre)
+            # Remove duplicates (#22)
+            ns_list = list(set(ns_list))
+            # Ensure nested namespaces are processed first (secondary sort by name)
+            ns_list = sorted(ns_list, key=lambda ns: (len(ns.split('::')), ns),
+                             reverse=True)
+            # Create namespace objects (flat map)
+            ns_obj_map = {ns: Namespace(ns) for ns in ns_list}
+            # Build list of objects
+            objects_out = []
+            # 1. Place objects in namespace container or in output list
+            for obj in self._objects:
+                if obj._namespace:
+                    ns_obj_map[obj._namespace].append(obj)
+                else:
+                    objects_out.append(obj)
+            # 2. Add namespaces: collapse nested namespaces and add top level
+            # namespaces to output list
+            for ns in ns_list:
+                ns_name_parts = ns.split('::')
+                if len(ns_name_parts) > 1:
+                    ns_parent = '::'.join(ns_name_parts[:-1])
+                    ns_obj_map[ns_parent].append(ns_obj_map[ns])
+                else:
+                    objects_out.append(ns_obj_map[ns])
+            # Render
+            return template.render(objects=objects_out,
+                                   inheritance_list=self._inheritance_list,
+                                   aggregation_list=self._aggregation_list,
+                                   dependency_list=self._dependency_list,
+                                   nesting_list=self._nesting_list,
+                                   flag_dep=self._flag_dep)
 
 Helper functions
 ~~~~~~~~~~~~~~~~
 
 This section briefly describes the helper functions defined in the module.
 
-Sanitize type string
-^^^^^^^^^^^^^^^^^^^^
+Sanitize strings
+^^^^^^^^^^^^^^^^
 
 The ``_cleanup_type`` function tries to unify the string representation of
 variable types by eliminating spaces around ``\*`` characters.
@@ -1436,8 +1767,55 @@ variable types by eliminating spaces around ``\*`` characters.
         str
             The type string after cleanup
         """
-        return re.sub(r'[ ]+([*&])', r'\1',
-                      re.sub(r'(\s)+', r'\1', type_str))
+        return re.sub('\s*([<>])\s*', r'\1',
+                      re.sub(r'[ ]+([*&])', r'\1',
+                             re.sub(r'(\s)+', r'\1', type_str)))
+
+    def _cleanup_namespace(ns_str):
+        """Cleanup string representing a C++ namespace
+
+        Cleanup simply consists in removing ``<>`` blocks and trailing ``:``
+        characters.
+
+        Parameters
+        ----------
+        ns_str : str
+            A string representing a C++ namespace
+
+        Returns
+        -------
+        str
+            The namespace string after cleanup
+        """
+        return re.sub(':+$', '',
+                      re.sub('<([^>]+)>', r'\1',
+                             re.sub('(.+)<[^>]+>', r'\1', ns_str)))
+
+The ``_cleanup_single_line`` function transforms a multiline input string into a
+single string version.
+
+.. code:: python
+    :name: py-helper-cleanup-line
+
+    # %% Single line version of string
+
+
+    def _cleanup_single_line(input_str):
+        """Cleanup string representing a C++ type
+
+        Remove line returns
+
+        Parameters
+        ----------
+        input_str : str
+            A string possibly spreading multiple lines
+
+        Returns
+        -------
+        str
+            The type string in a single line
+        """
+        return re.sub(r'\s+', ' ', re.sub(r'(\r)?\n', ' ', input_str))
 
 Expand file list
 ^^^^^^^^^^^^^^^^
@@ -1473,8 +1851,55 @@ existing filenames without wildcards.
         """
         file_list = []
         for input_file in input_files:
-            file_list += glob.glob(input_file)
+            file_list += glob.glob(input_file, recursive=True)
         return file_list
+
+Namespace wrapper
+^^^^^^^^^^^^^^^^^
+
+The ``wrap_namespace`` function wraps a rendered PlantUML string in a ``namespace``
+block.
+
+.. code:: python
+    :name: py-help-namespace
+
+    def wrap_namespace(input_str, namespace):
+        """Wrap string in namespace
+
+        Parameters
+        ----------
+        input_str : str
+            String containing PlantUML code
+        namespace : str
+           Namespace name
+
+        Returns
+        -------
+        str
+            ``input_str`` wrapped in ``namespace`` block
+        """
+        return 'namespace {} {{\n'.format(namespace) + \
+            '\n'.join([re.sub('^', '\t', line) if line else line
+                       for line in input_str.splitlines()]) + \
+            '\n}\n'
+
+    def get_namespace_link_name(namespace):
+        """Generate namespace string for link
+
+        Parameters
+        ----------
+        namespace : str
+            Namespace name (in the form ``nested::ns``)
+
+        Returns
+        -------
+        str
+            The namespace name formatted for use in links
+            (e.g. ``nested.nested::ns``)
+        """
+        if not namespace:
+            return ''
+        return '.'.join(namespace.split('::'))
 
 .. _sec-module-create-uml:
 
@@ -1496,8 +1921,8 @@ output file.
     # %% Main function
 
 
-    def CreatePlantUMLFile(file_list, output_file=None):
-        """ Create PlantUML file from list of header files
+    def CreatePlantUMLFile(file_list, output_file=None, **diagram_kwargs):
+        """Create PlantUML file from list of header files
 
         This function parses a list of C++ header files and generates a file for
         use with PlantUML.
@@ -1509,12 +1934,14 @@ output file.
             :func:`expand_file_list` function)
         output_file : str
             Name of the output file
+        diagram_kwargs : dict
+            Additional parameters passed to :class:`Diagram` constructor
         """
         if isinstance(file_list, str):
             file_list_c = [file_list, ]
         else:
             file_list_c = file_list
-        diag = Diagram()
+        diag = Diagram(**diagram_kwargs)
         diag.create_from_file_list(list(set(expand_file_list(file_list_c))))
         diag_render = diag.render()
 
@@ -1523,6 +1950,75 @@ output file.
         else:
             with open(output_file, 'wt') as fid:
                 fid.write(diag_render)
+
+Default template
+~~~~~~~~~~~~~~~~
+
+The rendering of the PlantUML file is managed by a ```jinja`` <http://jinja.pocoo.org/>`_ template.  The
+default template is as follows:
+
+::
+
+    :name: jinja2-tpl
+
+    @startuml
+
+    {% block preamble %}
+    {% endblock %}
+
+    {% block objects %}
+    /' Objects '/
+    {% for object in objects %}
+    {{ object.render() }}
+    {% endfor %}
+    {% endblock %}
+
+    {% block inheritance %}
+    /' Inheritance relationships '/
+    {% for link in inheritance_list %}
+    {{ link.render() }}
+    {% endfor %}
+    {% endblock %}
+
+    {% block aggregation %}
+    /' Aggregation relationships '/
+    {% for link in aggregation_list %}
+    {{ link.render() }}
+    {% endfor %}
+    {% endblock %}
+    {% if flag_dep %}
+    {% block dependency %}
+
+    /' Dependency relationships '/
+    {% for link in dependency_list %}
+    {{ link.render() }}
+    {% endfor %}
+    {% endblock %}
+    {% endif %}
+
+    {% block nested %}
+    /' Nested objects '/
+    {% for link in nesting_list %}
+    {{ link.render() }}
+    {% endfor %}
+    {% endblock %}
+
+    @enduml
+
+The template successively prints the following blocks
+
+``preamble``
+    Empty by default, can be used to insert a title and PlantUML
+    ``skinparam`` options
+
+``objects``
+    Classes, structs and enum objects
+
+``inheritance``
+    Inheritance links
+
+``aggregation``
+    Aggregation links
 
 .. _sec-module-cmd:
 
@@ -1548,16 +2044,27 @@ to parse input arguments.  The function passes the command line arguments to the
         Arguments are read from the command-line, run with ``--help`` for help.
         """
         parser = argparse.ArgumentParser(description='hpp2plantuml tool.')
-        parser.add_argument('-o', '--output-file', dest='output_file',
-                            required=False, default=None, metavar='FILE',
-                            help='Output file')
         parser.add_argument('-i', '--input-file', dest='input_files',
                             action='append', metavar='HEADER-FILE', required=True,
-                            help='Input file (must be quoted' +
+                            help='input file (must be quoted' +
                             ' when using wildcards)')
+        parser.add_argument('-o', '--output-file', dest='output_file',
+                            required=False, default=None, metavar='FILE',
+                            help='output file')
+        parser.add_argument('-d', '--enable-dependency', dest='flag_dep',
+                            required=False, default=False, action='store_true',
+                            help='Extract dependency relationships from method ' +
+                            'arguments')
+        parser.add_argument('-t', '--template-file', dest='template_file',
+                            required=False, default=None, metavar='JINJA-FILE',
+                            help='path to jinja2 template file')
+        parser.add_argument('--version', action='version',
+                            version='%(prog)s ' + '0.8.4')
         args = parser.parse_args()
         if len(args.input_files) > 0:
-            CreatePlantUMLFile(args.input_files, args.output_file)
+            CreatePlantUMLFile(args.input_files, args.output_file,
+                               template_file=args.template_file,
+                               flag_dep=args.flag_dep)
 
     # %% Standalone mode
 
@@ -1616,16 +2123,22 @@ The command line usage is (``hpp2plantuml --help``):
 
 ::
 
-    usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-d] [-t JINJA-FILE]
+                        [--version]
 
     hpp2plantuml tool.
 
     optional arguments:
       -h, --help            show this help message and exit
-      -o FILE, --output-file FILE
-                            Output file
       -i HEADER-FILE, --input-file HEADER-FILE
-                            Input file (must be quoted when using wildcards)
+                            input file (must be quoted when using wildcards)
+      -o FILE, --output-file FILE
+                            output file
+      -d, --enable-dependency
+                            Extract dependency relationships from method arguments
+      -t JINJA-FILE, --template-file JINJA-FILE
+                            path to jinja2 template file
+      --version             show program's version number and exit
 
 
 Input files are added using the ``-i`` option.  Inputs can be full file paths or
@@ -1641,6 +2154,30 @@ For instance, the following command will generate an input file for PlantUML
 
     hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 
+To customize the output PlantUML file, templates can be used (using the ``-t``
+parameter):
+
+.. code:: sh
+    :name: usage-sh-template
+
+    hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+This will use the ``template.puml`` file as template.  Templates follow the `jinja <http://jinja.pocoo.org/>`_
+syntax.  For instance, to add a preamble to the PlantUML output, the template
+file may contain:
+
+::
+
+    {% extends 'default.puml' %}
+
+    {% block preamble %}
+    title "This is a title"
+    skinparam backgroundColor #EEEBDC
+    skinparam handwritten true
+    {% endblock %}
+
+This will inherit from the default template and override the preamble only.
+
 Module
 ~~~~~~
 
@@ -1648,12 +2185,13 @@ To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
 function can then be used to create a PlantUML file from a set of input files.
 Alternatively, the ``Diagram`` object can be used directly to build internal
 objects (from files or strings).  The ``Diagram.render()`` method can be used to
-produce a string output instead of writing to a text file.
+produce a string output instead of writing to a text file.  See the API
+documentation for more details.
 
 Tests
 -----
 
-Testing is performed using the `nose <http://nose.readthedocs.io/en/latest/>`_ framework.  The tests are defined in the
+Testing is performed using the `pytest <https://docs.pytest.org/en/7.3.x/>`_ framework.  The tests are defined in the
 ``test_hpp2plantuml.py`` file located in the test folder.  They can be run with
 the ``python setup.py test`` command.
 
@@ -1678,7 +2216,7 @@ Following is the test setup code.
     import io
     import sys
     import re
-    import nose.tools as nt
+    import pytest
     import CppHeaderParser
     import hpp2plantuml
 
@@ -1691,7 +2229,7 @@ Following is the test setup code.
         return CppHeaderParser.CppHeader(input_str, argType='string')
 
 
-    @nt.nottest
+    @pytest.mark.skip(reason='not a test')
     def fix_test_list_def(test_list):
         test_list_out = []
         for test_entry in test_list:
@@ -1725,8 +2263,8 @@ sorting keys.
             c_type = "container_type"
             c_name = "container_name"
             c_obj = hpp2plantuml.hpp2plantuml.Container(c_type, c_name)
-            nt.assert_equal(c_obj.get_name(), c_name)
-            nt.assert_equal(c_obj.render(), 'container_type container_name {\n}\n')
+            assert c_obj.name == c_name
+            assert c_obj.render() == 'container_type container_name {\n}\n'
 
         def test_comparison_keys(self):
             c_list = [
@@ -1742,8 +2280,7 @@ sorting keys.
             c_obj_list.sort(key=lambda obj: obj.comparison_keys())
 
             for i in range(len(c_list)):
-                nt.assert_equal(c_obj_list[i].get_name(),
-                                c_list[ref_sort_idx[i]][1])
+                assert c_obj_list[i].name == c_list[ref_sort_idx[i]][1]
 
 Class
 ^^^^^
@@ -1764,15 +2301,17 @@ the representation of variables.
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-class_var
 
-    +---------------------------------------------+-------------------+
-    | C++                                         | plantuml          |
-    +=============================================+===================+
-    | "class Test {\npublic:\nint member; };"     | "+member : int"   |
-    +---------------------------------------------+-------------------+
-    | "class Test {\nprivate:\nint \* member; };" | "-member : int\*" |
-    +---------------------------------------------+-------------------+
-    | "class Test {\nprotected:\nint &member; };" | "#member : int&"  |
-    +---------------------------------------------+-------------------+
+    +------------------------------------------------+-------------------+
+    | C++                                            | plantuml          |
+    +================================================+===================+
+    | "class Test {\npublic:\nint member; };"        | "+member : int"   |
+    +------------------------------------------------+-------------------+
+    | "class Test {\nprivate:\nint \* member; };"    | "-member : int\*" |
+    +------------------------------------------------+-------------------+
+    | "class Test {\nprotected:\nint &member; };"    | "#member : int&"  |
+    +------------------------------------------------+-------------------+
+    | "class Test {\nprotected:\nint member[10]; };" | "#member : int[]" |
+    +------------------------------------------------+-------------------+
 
 
 .. code:: python
@@ -1786,14 +2325,12 @@ the representation of variables.
             for test_idx, (input_str, output_ref_str) in \
                 enumerate(fix_test_list_def(test_list_classvar)):
                 p = get_parsed_element(input_str)
-                class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                     input_str.replace('\n', ' '))
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
                 obj_m = obj_c._member_list[0]
-                nt.assert_equal(output_ref_str, obj_m.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_m.render()
 
 Class method
 ::::::::::::
@@ -1831,14 +2368,12 @@ supported by PlantUML.
             for test_idx, (input_str, output_ref_str) in \
                 enumerate(fix_test_list_def(test_list_classmethod)):
                 p = get_parsed_element(input_str)
-                class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                     input_str.replace('\n', ' '))
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
                 obj_m = obj_c._member_list[0]
-                nt.assert_equal(output_ref_str, obj_m.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_m.render()
 
 Class
 :::::
@@ -1849,18 +2384,21 @@ Table `tbl-unittest-class`_.  It includes templates and abstract classes.
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-class
 
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | C++                                                                 | plantuml                                                                               |
-    +=====================================================================+========================================================================================+
-    | "class Test {\nprotected:\nint & member; };"                        | "class Test {\n\t#member : int&\n}\n"                                                  |
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "class Test\n{\npublic:\nvirtual int func() = 0; };"                | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                               |
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "template <typename T> class Test{\nT* func(T& arg); };"            | "class Test <template <typename T>> {\n\t-func(T& arg) : T\*\n}\n"                     |
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-    | "template <typename T> class Test{\nvirtual T\* func(T& arg)=0; };" | "abstract class Test <template <typename T>> {\n\t-{abstract} func(T& arg) : T\*\n}\n" |
-    +---------------------------------------------------------------------+----------------------------------------------------------------------------------------+
-
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | C++                                                                   | plantuml                                                                              |
+    +=======================================================================+=======================================================================================+
+    | "class Test {\nprotected:\nint & member; };"                          | "class Test {\n\t#member : int&\n}\n"                                                 |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "struct Test {\nprotected:\nint & member; };"                         | "class Test {\n\t#member : int&\n}\n"                                                 |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "class Test\n{\npublic:\nvirtual int func() = 0; };"                  | "abstract class Test {\n\t+{abstract} func() : int\n}\n"                              |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "template <typename T> class Test{\nT* func(T& arg); };"              | "class Test <template<typename T>> {\n\t-func(T& arg) : T\*\n}\n"                     |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "template <typename T> class Test{\nvirtual T\* func(T& arg)=0; };"   | "abstract class Test <template<typename T>> {\n\t-{abstract} func(T& arg) : T\*\n}\n" |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
+    | "namespace Interface {\nclass Test {\nprotected:\nint & member; };};" | "class Test {\n\t#member : int&\n}\n"                                                 |
+    +-----------------------------------------------------------------------+---------------------------------------------------------------------------------------+
 
 .. code:: python
     :name: test-unit-class
@@ -1873,13 +2411,11 @@ Table `tbl-unittest-class`_.  It includes templates and abstract classes.
             for test_idx, (input_str, output_ref_str) in \
                 enumerate(fix_test_list_def(test_list_class)):
                 p = get_parsed_element(input_str)
-                class_name = re.sub(r'.*class\s*(\w+).*', r'\1',
+                class_name = re.sub(r'.*(class|struct)\s*(\w+).*', r'\2',
                                     input_str.replace('\n', ' '))
                 class_input = [class_name, p.classes[class_name]]
                 obj_c = hpp2plantuml.hpp2plantuml.Class(class_input)
-                nt.assert_equal(output_ref_str, obj_c.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_c.render()
 
 Enum
 ^^^^
@@ -1896,6 +2432,8 @@ Table `tbl-unittest-enum`_.
     | "enum Test { A, B, CD, E };"        | "enum Test {\n\tA\n\tB\n\tCD\n\tE\n}\n" |
     +-------------------------------------+-----------------------------------------+
     | "enum Test\n{\n A = 0, B = 12\n };" | "enum Test {\n\tA\n\tB\n}\n"            |
+    +-------------------------------------+-----------------------------------------+
+    | "enum { A, B };"                    | "enum empty {\n\tA\n\tB\n}\n""          |
     +-------------------------------------+-----------------------------------------+
 
 
@@ -1914,9 +2452,7 @@ Table `tbl-unittest-enum`_.
                                    input_str.replace('\n', ' '))
                 enum_input = p.enums[0]
                 obj_c = hpp2plantuml.hpp2plantuml.Enum(enum_input)
-                nt.assert_equal(output_ref_str, obj_c.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                assert output_ref_str == obj_c.render()
 
 Links
 ^^^^^
@@ -1929,17 +2465,25 @@ relationships (with and without count).
 .. table:: List of test segments and corresponding PlantUML strings.
     :name: tbl-unittest-link
 
-    +-----------------------------------------+-------------------+
-    | C++                                     | plantuml          |
-    +=========================================+===================+
-    | "class A{};\nclass B : A{};"            | "A <@-- B"        |
-    +-----------------------------------------+-------------------+
-    | "class A{};\nclass B : public A{};"     | "A <@-- B"        |
-    +-----------------------------------------+-------------------+
-    | "class B{};\nclass A{B obj;};"          | "A o-- B"         |
-    +-----------------------------------------+-------------------+
-    | "class B{};\nclass A{B obj; B\* ptr;};" | "A \\"2\\" o-- B" |
-    +-----------------------------------------+-------------------+
+    +----------------------------------------------------------+---------------------+
+    | C++                                                      | plantuml            |
+    +==========================================================+=====================+
+    | "class A{};\nclass B : A{};"                             | "A <@-- B\n"        |
+    +----------------------------------------------------------+---------------------+
+    | "class A{};\nclass B : public A{};"                      | "A <@-- B\n"        |
+    +----------------------------------------------------------+---------------------+
+    | "class B{};\nclass A{B obj;};"                           | "A \*-- B\n"        |
+    +----------------------------------------------------------+---------------------+
+    | "class B{};\nclass A{B\* obj;};"                         | "A o-- B\n"         |
+    +----------------------------------------------------------+---------------------+
+    | "class B{};\nclass A{B \* obj\_ptr; B\* ptr;};"          | "A \\"2\\" o-- B\n" |
+    +----------------------------------------------------------+---------------------+
+    | "class A{};\nclass B{void Method(A\* obj);};"            | "A <.. B\n"         |
+    +----------------------------------------------------------+---------------------+
+    | "namespace T {class A{}; class B: A{};};"                | "T.A <@-- T.B\n"    |
+    +----------------------------------------------------------+---------------------+
+    | "namespace T {\nclass A{};};\nclass B{T\:\:A\* \_obj;};" | "B o-- T.A\n"       |
+    +----------------------------------------------------------+---------------------+
 
 
 .. code:: python
@@ -1949,16 +2493,16 @@ relationships (with and without count).
         def test_list_entries(self):
             for test_idx, (input_str, output_ref_str) in \
                 enumerate(fix_test_list_def(test_list_link)):
-                obj_d = hpp2plantuml.Diagram()
+                obj_d = hpp2plantuml.Diagram(flag_dep=True)
                 # Not very unittest-y
                 obj_d.create_from_string(input_str)
                 if len(obj_d._inheritance_list) > 0:
                     obj_l = obj_d._inheritance_list[0]
                 elif len(obj_d._aggregation_list) > 0:
                     obj_l = obj_d._aggregation_list[0]
-                nt.assert_equal(output_ref_str, obj_l.render(),
-                                'Test {0} failed [input: {1}]'.format(test_idx,
-                                                                      input_str))
+                elif len(obj_d._dependency_list) > 0:
+                    obj_l = obj_d._dependency_list[0]
+                assert output_ref_str == obj_l.render()
 
 Full system test
 ~~~~~~~~~~~~~~~~
@@ -1991,6 +2535,7 @@ The following can be extended to improve testing, as long as the corresponding
     	static bool _StaticProtectedMethod(bool param);
     	virtual bool _AbstractMethod(int param) = 0;
     public:
+    	Class01& operator=(const Class01&) & = delete;
     	int public_var;
     	bool PublicMethod(int param) const;
     	static bool StaticPublicMethod(bool param);
@@ -2001,8 +2546,12 @@ The following can be extended to improve testing, as long as the corresponding
     public:
     	bool AbstractPublicMethod(int param) override;
     private:
+    	class ClassNested {
+    		int var;
+    	};
     	int _private_var;
-    	bool _PrivateMethod(int param);
+    	template <typename T>
+    	bool _PrivateMethod(T param);
     	static bool _StaticPrivateMethod(bool param);
     	bool _AbstractMethod(int param) override;
     };
@@ -2011,16 +2560,76 @@ The following can be extended to improve testing, as long as the corresponding
     :name: hpp-simple-classes-3
 
     template<typename T>
-    class Class03 {
+    class Class03 : public 	first_ns::second_ns::A {
     public:
     	Class03();
     	~Class03();
+    	void Method(Interface::Class04& c4);
     private:
     	Class01* _obj;
     	Class01* _data;
     	list<Class02> _obj_list;
     	T* _typed_obj;
     };
+
+    namespace Interface {
+
+    	class Class04 {
+    	public:
+    		Class04();
+    		~Class04();
+    	private:
+    		bool _flag;
+    		Class01* _obj;
+    		T _var;
+    		Enum01 _val;
+    	};
+
+    	class Class04_derived : public Class04 {
+    	public:
+    		Class04_derived();
+    		~Class04_derived();
+    	private:
+    		int _var;
+    	};
+
+    	struct Struct {
+    		int a;
+    	};
+    	enum Enum { A, B };
+
+    	namespace NestedNamespace {
+    		class Class04_ns : private Class04_derived {
+    		protected:
+    			Struct _s;
+    			Enum _e;
+    		};
+    	};
+    };
+
+    // Anonymous union (issue #9)
+    union {
+    	struct {
+    		float x;
+    		float y;
+    		float z;
+    	};
+    	struct {
+    		float rho;
+    		float theta;
+    		float phi;
+    	};
+    	float vec[3];
+    };
+
+    // Empty parent namespace (issue #13)
+    namespace first_ns::second_ns{
+    	class A : public Class02 {};
+    }
+
+    namespace first_ns::second_ns::third_ns{
+    	class B {};
+    }
 
 .. _sec-test-system-ref:
 
@@ -2030,12 +2639,18 @@ Reference output
 Following is the reference output for the input header files defined `sec-test-system-hpp`_.
 The comparison takes into account the white space, indentation, etc.
 
-
 ::
 
     :name: puml-simple-classes
 
     @startuml
+
+
+
+
+
+    /' Objects '/
+
     abstract class Class01 {
     	+{abstract} AbstractPublicMethod(int param) : bool
     	+PublicMethod(int param) : bool {query}
@@ -2047,13 +2662,20 @@ The comparison takes into account the white space, indentation, etc.
     	+public_var : int
     }
 
+
     class Class02 {
     	+AbstractPublicMethod(int param) : bool
     	-_AbstractMethod(int param) : bool
-    	-_PrivateMethod(int param) : bool
+    	-_PrivateMethod(T param) : bool
     	-{static} _StaticPrivateMethod(bool param) : bool
     	-_private_var : int
     }
+
+
+    class Class02::ClassNested {
+    	-var : int
+    }
+
 
     class Class03 <template<typename T>> {
     	+Class03()
@@ -2062,7 +2684,9 @@ The comparison takes into account the white space, indentation, etc.
     	-_obj : Class01*
     	-_typed_obj : T*
     	-_obj_list : list<Class02>
+    	+Method(Interface::Class04& c4) : void
     }
+
 
     enum Enum01 {
     	VALUE_0
@@ -2070,9 +2694,325 @@ The comparison takes into account the white space, indentation, etc.
     	VALUE_2
     }
 
+
+    class anon_union_1::anon_struct_1 {
+    	+x : float
+    	+y : float
+    	+z : float
+    }
+
+
+    class anon_union_1::anon_struct_2 {
+    	+phi : float
+    	+rho : float
+    	+theta : float
+    }
+
+
+    class anon_union_1 {
+    	+vec : float[]
+    }
+
+
+    namespace first_ns {
+    	namespace second_ns {
+    		class A {
+    		}
+
+    		namespace third_ns {
+    			class B {
+    			}
+    		}
+    	}
+    }
+
+
+    namespace Interface {
+    	class Class04 {
+    		+Class04()
+    		+~Class04()
+    		-_obj : Class01*
+    		-_val : Enum01
+    		-_var : T
+    		-_flag : bool
+    	}
+
+    	class Class04_derived {
+    		+Class04_derived()
+    		+~Class04_derived()
+    		-_var : int
+    	}
+
+    	enum Enum {
+    		A
+    		B
+    	}
+
+    	class Struct {
+    		+a : int
+    	}
+
+    	namespace NestedNamespace {
+    		class Class04_ns {
+    			#_e : Enum
+    			#_s : Struct
+    		}
+    	}
+    }
+
+
+
+
+
+    /' Inheritance relationships '/
+
+    first_ns.second_ns.A <|-- Class03
+
+
     Class01 <|-- Class02
+
+
+    Class02 <|-- first_ns.second_ns.A
+
+
+    Interface.Class04 <|-- Interface.Class04_derived
+
+
+    Interface.Class04_derived <|-- Interface.NestedNamespace.Class04_ns
+
+
+
+
+
+    /' Aggregation relationships '/
+
     Class03 "2" o-- Class01
-    Class03 o-- Class02
+
+
+    Class03 *-- Class02
+
+
+    Interface.Class04 o-- Class01
+
+
+    Interface.Class04 *-- Enum01
+
+
+    Interface.NestedNamespace.Class04_ns *-- Interface.Enum
+
+
+    Interface.NestedNamespace.Class04_ns *-- Interface.Struct
+
+
+
+
+
+
+    /' Dependency relationships '/
+
+    Interface.Class04 <.. Class03
+
+
+
+
+
+
+    /' Nested objects '/
+
+    Class02 +-- Class02::ClassNested
+
+
+    anon_union_1 +-- anon_union_1::anon_struct_1
+
+
+    anon_union_1 +-- anon_union_1::anon_struct_2
+
+
+
+
+    @enduml
+
+::
+
+    :name: puml-simple-classes-no-dependency
+
+    @startuml
+
+
+
+
+
+    /' Objects '/
+
+    abstract class Class01 {
+    	+{abstract} AbstractPublicMethod(int param) : bool
+    	+PublicMethod(int param) : bool {query}
+    	+{static} StaticPublicMethod(bool param) : bool
+    	#{abstract} _AbstractMethod(int param) : bool
+    	#_ProtectedMethod(int param) : bool
+    	#{static} _StaticProtectedMethod(bool param) : bool
+    	#_protected_var : int
+    	+public_var : int
+    }
+
+
+    class Class02 {
+    	+AbstractPublicMethod(int param) : bool
+    	-_AbstractMethod(int param) : bool
+    	-_PrivateMethod(T param) : bool
+    	-{static} _StaticPrivateMethod(bool param) : bool
+    	-_private_var : int
+    }
+
+
+    class Class02::ClassNested {
+    	-var : int
+    }
+
+
+    class Class03 <template<typename T>> {
+    	+Class03()
+    	+~Class03()
+    	-_data : Class01*
+    	-_obj : Class01*
+    	-_typed_obj : T*
+    	-_obj_list : list<Class02>
+    	+Method(Interface::Class04& c4) : void
+    }
+
+
+    enum Enum01 {
+    	VALUE_0
+    	VALUE_1
+    	VALUE_2
+    }
+
+
+    class anon_union_1::anon_struct_1 {
+    	+x : float
+    	+y : float
+    	+z : float
+    }
+
+
+    class anon_union_1::anon_struct_2 {
+    	+phi : float
+    	+rho : float
+    	+theta : float
+    }
+
+
+    class anon_union_1 {
+    	+vec : float[]
+    }
+
+
+    namespace first_ns {
+    	namespace second_ns {
+    		class A {
+    		}
+
+    		namespace third_ns {
+    			class B {
+    			}
+    		}
+    	}
+    }
+
+
+    namespace Interface {
+    	class Class04 {
+    		+Class04()
+    		+~Class04()
+    		-_obj : Class01*
+    		-_val : Enum01
+    		-_var : T
+    		-_flag : bool
+    	}
+
+    	class Class04_derived {
+    		+Class04_derived()
+    		+~Class04_derived()
+    		-_var : int
+    	}
+
+    	enum Enum {
+    		A
+    		B
+    	}
+
+    	class Struct {
+    		+a : int
+    	}
+
+    	namespace NestedNamespace {
+    		class Class04_ns {
+    			#_e : Enum
+    			#_s : Struct
+    		}
+    	}
+    }
+
+
+
+
+
+    /' Inheritance relationships '/
+
+    first_ns.second_ns.A <|-- Class03
+
+
+    Class01 <|-- Class02
+
+
+    Class02 <|-- first_ns.second_ns.A
+
+
+    Interface.Class04 <|-- Interface.Class04_derived
+
+
+    Interface.Class04_derived <|-- Interface.NestedNamespace.Class04_ns
+
+
+
+
+
+    /' Aggregation relationships '/
+
+    Class03 "2" o-- Class01
+
+
+    Class03 *-- Class02
+
+
+    Interface.Class04 o-- Class01
+
+
+    Interface.Class04 *-- Enum01
+
+
+    Interface.NestedNamespace.Class04_ns *-- Interface.Enum
+
+
+    Interface.NestedNamespace.Class04_ns *-- Interface.Struct
+
+
+
+
+
+
+    /' Nested objects '/
+
+    Class02 +-- Class02::ClassNested
+
+
+    anon_union_1 +-- anon_union_1::anon_struct_1
+
+
+    anon_union_1 +-- anon_union_1::anon_struct_2
+
+
+
 
     @enduml
 
@@ -2088,7 +3028,20 @@ The system test validates the following:
 
 - object reset,
 
-- the ``CreatePlantUMLFile`` interface, including stdout and file output.
+- the ``CreatePlantUMLFile`` interface, including stdout and file output.  This
+  test also includes a run with custom template.
+
+::
+
+    :name: test-full-template
+
+    {% extends 'default.puml' %}
+
+    {% block preamble %}
+    title "This is a title"
+    skinparam backgroundColor #EEEBDC
+    skinparam handwritten true
+    {% endblock %}
 
 
 .. code:: python
@@ -2099,23 +3052,35 @@ The system test validates the following:
 
     class TestFullDiagram():
 
-        def __init__(self):
+        def setup_class(self):
             self._input_files = ['simple_classes_1_2.hpp', 'simple_classes_3.hpp']
             self._input_files_w = ['simple_classes_*.hpp', 'simple_classes_3.hpp']
             self._diag_saved_ref = ''
             with open(os.path.join(test_fold, 'simple_classes.puml'), 'rt') as fid:
                 self._diag_saved_ref = fid.read()
+            self._diag_saved_ref_nodep = ''
+            with open(os.path.join(test_fold,
+                                   'simple_classes_nodep.puml'), 'rt') as fid:
+                self._diag_saved_ref_nodep = fid.read()
 
         def test_full_files(self):
+            self._test_full_files_helper(False)
+            self._test_full_files_helper(True)
+
+        def _test_full_files_helper(self, flag_dep=False):
             # Create first version
             file_list_ref = list(set(hpp2plantuml.hpp2plantuml.expand_file_list(
                 [os.path.join(test_fold, f) for f in self._input_files])))
-            diag_ref = hpp2plantuml.Diagram()
+            diag_ref = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_ref.create_from_file_list(file_list_ref)
             diag_render_ref = diag_ref.render()
 
             # Compare to saved reference
-            nt.assert_equal(self._diag_saved_ref, diag_render_ref)
+            if flag_dep:
+                saved_ref = self._diag_saved_ref
+            else:
+                saved_ref = self._diag_saved_ref_nodep
+            assert saved_ref == diag_render_ref
 
             # # Validate equivalent inputs
 
@@ -2125,25 +3090,25 @@ The system test validates the following:
                     [os.path.join(test_fold, f) for f in file_list])))
 
                 # Create from file list
-                diag_c = hpp2plantuml.Diagram()
+                diag_c = hpp2plantuml.Diagram(flag_dep=flag_dep)
                 diag_c.create_from_file_list(file_list_c)
-                nt.assert_equal(diag_render_ref, diag_c.render())
+                assert diag_render_ref == diag_c.render()
 
                 # Add from file list
-                diag_c_add = hpp2plantuml.Diagram()
+                diag_c_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
                 diag_c_add.add_from_file_list(file_list_c)
                 diag_c_add.build_relationship_lists()
                 diag_c_add.sort_elements()
-                nt.assert_equal(diag_render_ref, diag_c_add.render())
+                assert diag_render_ref == diag_c_add.render()
 
                 # Create from first file, add from rest of the list
-                diag_c_file = hpp2plantuml.Diagram()
+                diag_c_file = hpp2plantuml.Diagram(flag_dep=flag_dep)
                 diag_c_file.create_from_file(file_list_c[0])
                 for file_c in file_list_c[1:]:
                     diag_c_file.add_from_file(file_c)
                 diag_c_file.build_relationship_lists()
                 diag_c_file.sort_elements()
-                nt.assert_equal(diag_render_ref, diag_c_file.render())
+                assert diag_render_ref == diag_c_file.render()
 
             # String inputs
             input_str_list = []
@@ -2152,28 +3117,28 @@ The system test validates the following:
                     input_str_list.append(fid.read())
 
             # Create from string list
-            diag_str_list = hpp2plantuml.Diagram()
+            diag_str_list = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_str_list.create_from_string_list(input_str_list)
-            nt.assert_equal(diag_render_ref, diag_str_list.render())
+            assert diag_render_ref == diag_str_list.render()
 
             # Add from string list
-            diag_str_list_add = hpp2plantuml.Diagram()
+            diag_str_list_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_str_list_add.add_from_string_list(input_str_list)
             diag_str_list_add.build_relationship_lists()
             diag_str_list_add.sort_elements()
-            nt.assert_equal(diag_render_ref, diag_str_list_add.render())
+            assert diag_render_ref == diag_str_list_add.render()
 
             # Create from string
-            diag_str = hpp2plantuml.Diagram()
+            diag_str = hpp2plantuml.Diagram(flag_dep=flag_dep)
             diag_str.create_from_string('\n'.join(input_str_list))
-            nt.assert_equal(diag_render_ref, diag_str.render())
+            assert diag_render_ref == diag_str.render()
             # Reset and parse
             diag_str.clear()
             diag_str.create_from_string('\n'.join(input_str_list))
-            nt.assert_equal(diag_render_ref, diag_str.render())
+            assert diag_render_ref == diag_str.render()
 
             # Manually build object
-            diag_manual_add = hpp2plantuml.Diagram()
+            diag_manual_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
             for idx, (file_c, string_c) in enumerate(zip(file_list_ref,
                                                          input_str_list)):
                 if idx == 0:
@@ -2182,9 +3147,13 @@ The system test validates the following:
                     diag_manual_add.add_from_string(string_c)
             diag_manual_add.build_relationship_lists()
             diag_manual_add.sort_elements()
-            nt.assert_equal(diag_render_ref, diag_manual_add.render())
+            assert diag_render_ref == diag_manual_add.render()
 
         def test_main_function(self):
+            #self._test_main_function_helper(False)
+            self._test_main_function_helper(True)
+
+        def _test_main_function_helper(self, flag_dep=False):
 
             # List files
             file_list = [os.path.join(test_fold, f) for f in self._input_files]
@@ -2192,20 +3161,43 @@ The system test validates the following:
             # Output to string
             with io.StringIO() as io_stream:
                 sys.stdout = io_stream
-                hpp2plantuml.CreatePlantUMLFile(file_list)
+                hpp2plantuml.CreatePlantUMLFile(file_list, flag_dep=flag_dep)
                 io_stream.seek(0)
                 # Read string output, exclude final line return
                 output_str = io_stream.read()[:-1]
             sys.stdout = sys.__stdout__
-            nt.assert_equal(self._diag_saved_ref, output_str)
+            if flag_dep:
+                saved_ref = self._diag_saved_ref
+            else:
+                saved_ref = self._diag_saved_ref_nodep
+            assert saved_ref == output_str
 
             # Output to file
             output_fname = 'output.puml'
-            hpp2plantuml.CreatePlantUMLFile(file_list, output_fname)
-            output_fcontent = ''
-            with open(output_fname, 'rt') as fid:
-                output_fcontent = fid.read()
-            nt.assert_equal(self._diag_saved_ref, output_fcontent)
+            for template in [None, os.path.join(test_fold,
+                                                'custom_template.puml')]:
+                hpp2plantuml.CreatePlantUMLFile(file_list, output_fname,
+                                                template_file=template,
+                                                flag_dep=flag_dep)
+                output_fcontent = ''
+                with open(output_fname, 'rt') as fid:
+                    output_fcontent = fid.read()
+                if template is None:
+                    # Default template check
+                    assert saved_ref == output_fcontent
+                else:
+                    # Check that all lines of reference are in the output
+                    ref_re = re.search(r'(@startuml)\s*(.*)', saved_ref, re.DOTALL)
+                    assert ref_re
+                    # Build regular expression: allow arbitrary text between
+                    # @startuml and the rest of the string
+                    ref_groups = ref_re.groups()
+                    match_re = re.compile('\n'.join([
+                        re.escape(ref_groups[0]),    # @startuml line
+                        '.*',                        # preamble
+                        re.escape(ref_groups[1])]),  # main output
+                                          re.DOTALL)
+                    assert match_re.search(output_fcontent)
             os.unlink(output_fname)
 
 Packaging
@@ -2223,6 +3215,12 @@ examples:
 
 - `https://packaging.python.org/distributing/ <https://packaging.python.org/distributing/>`_
 
+To build, run ``python setup.py build bdist``, ``python setup.py build bdist_wheel``.  To upload to PyPI, run:
+
+::
+
+    twine upload -r pypi --sign dist/hpp2plantuml-*
+
 ``__init__.py``
 ~~~~~~~~~~~~~~~
 
@@ -2236,7 +3234,7 @@ obtained using the source block described `sec-org-el-version`_.
 .. code:: python
     :name: py-init
 
-    """ hpp2plantuml module
+    """hpp2plantuml module
 
     .. _sec-module:
 
@@ -2275,16 +3273,22 @@ obtained using the source block described `sec-org-el-version`_.
 
     ::
 
-        usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-d] [-t JINJA-FILE]
+                            [--version]
 
         hpp2plantuml tool.
 
         optional arguments:
           -h, --help            show this help message and exit
-          -o FILE, --output-file FILE
-                                Output file
           -i HEADER-FILE, --input-file HEADER-FILE
-                                Input file (must be quoted when using wildcards)
+                                input file (must be quoted when using wildcards)
+          -o FILE, --output-file FILE
+                                output file
+          -d, --enable-dependency
+                                Extract dependency relationships from method arguments
+          -t JINJA-FILE, --template-file JINJA-FILE
+                                path to jinja2 template file
+          --version             show program's version number and exit
 
 
     Input files are added using the ``-i`` option.  Inputs can be full file paths or
@@ -2300,6 +3304,30 @@ obtained using the source block described `sec-org-el-version`_.
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 
+    To customize the output PlantUML file, templates can be used (using the ``-t``
+    parameter):
+
+    .. code:: sh
+        :name: usage-sh-template
+
+        hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+    This will use the ``template.puml`` file as template.  Templates follow the `jinja <http://jinja.pocoo.org/>`_
+    syntax.  For instance, to add a preamble to the PlantUML output, the template
+    file may contain:
+
+    ::
+
+        {% extends 'default.puml' %}
+
+        {% block preamble %}
+        title "This is a title"
+        skinparam backgroundColor #EEEBDC
+        skinparam handwritten true
+        {% endblock %}
+
+    This will inherit from the default template and override the preamble only.
+
     Module
     ~~~~~~
 
@@ -2307,19 +3335,20 @@ obtained using the source block described `sec-org-el-version`_.
     function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
-    produce a string output instead of writing to a text file.
+    produce a string output instead of writing to a text file.  See the API
+    documentation for more details.
 
     """
 
     __title__ = "hpp2plantuml"
     __description__ = "Convert C++ header files to PlantUML"
-    __version__ = '0.2'
+    __version__ = '0.8.4'
     __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
     __doc__ = __description__ + " <" + __uri__ + ">"
     __author__ = "Thibault Marin"
     __email__ = "thibault.marin@gmx.com"
     __license__ = "MIT"
-    __copyright__ = "Copyright (c) 2016 Thibault Marin"
+    __copyright__ = "Copyright (c) 2023 Thibault Marin"
 
     from .hpp2plantuml import CreatePlantUMLFile, Diagram
 
@@ -2345,7 +3374,7 @@ documentation files.  In practice, the documentation is built using a `sec-packa
     universal = 1
 
     [metadata]
-    license_file = LICENSE
+    license_files = LICENSE
 
     [build_sphinx]
     source-dir = doc/source
@@ -2366,7 +3395,6 @@ options.  Most of it is taken from `this post <https://hynek.me/articles/sharing
 .. code:: python
     :name: py-setup-import
 
-
     # %% Imports
     import os
     import sys
@@ -2376,7 +3404,8 @@ options.  Most of it is taken from `this post <https://hynek.me/articles/sharing
     from setuptools import setup, find_packages, Command
     try:
         import sphinx
-        import sphinx.apidoc
+        import sphinx.ext.apidoc
+        import sphinx.cmd.build
     except ImportError:
         pass
 
@@ -2395,7 +3424,7 @@ The non-boilerplate part of the ``setup.py`` file defines the package informatio
     NAME = "hpp2plantuml"
     PACKAGES = find_packages(where="src")
     META_PATH = os.path.join("src", NAME, "__init__.py")
-    KEYWORDS = ["class", "attribute", "boilerplate"]
+    KEYWORDS = ["class"]
     CLASSIFIERS = [
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
@@ -2404,13 +3433,10 @@ The non-boilerplate part of the ``setup.py`` file defines the package informatio
         "Operating System :: OS Independent",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.3",
-        "Programming Language :: Python :: 3.4",
-        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ]
-    INSTALL_REQUIRES = <<py-dependencies("requirements")>>
+    INSTALL_REQUIRES = ['argparse', 'robotpy-cppheaderparser', 'jinja2']
     INSTALL_REQUIRES += ['sphinx', ]
     SETUP_REQUIRES = ['sphinx', 'numpydoc']
     ###################################################################
@@ -2470,19 +3496,18 @@ The following helper functions provide tools to extract metadata from the
             src_dir = (self.distribution.package_dir or {'': ''})['']
             src_dir = os.path.join(os.getcwd(),  src_dir)
             sys.path.append('src')
-            print('pwd=', os.getcwd(), ' src-dir=', src_dir)
             # Run sphinx by calling the main method, '--full' also adds a
             # conf.py
-            sphinx.apidoc.main(
-                ['', '--private', '-H', metadata.name,
+            sphinx.ext.apidoc.main(
+                ['--private', '-H', metadata.name,
                  '-A', metadata.author,
                  '-V', metadata.version,
                  '-R', metadata.version,
                  '-o', os.path.join('doc', 'source'), src_dir]
             )
             # build the doc sources
-            sphinx.main(['', os.path.join('doc', 'source'),
-                         os.path.join('doc', 'build', 'html')])
+            sphinx.cmd.build.main([os.path.join('doc', 'source'),
+                                   os.path.join('doc', 'build', 'html')])
 
 Setup
 ^^^^^
@@ -2516,12 +3541,14 @@ This final block passes all the relevant package information to ``setuptools``:
             long_description=read("README.rst"),
             packages=PACKAGES,
             package_dir={"": "src"},
+            package_data={PACKAGES[0]: ['templates/*.puml']},
+            include_package_data=True,
             zip_safe=False,
             classifiers=CLASSIFIERS,
             install_requires=INSTALL_REQUIRES,
             setup_requires=SETUP_REQUIRES,
-            test_suite='nose.collector',
-            tests_require=['nose'],
+            test_suite='pytest',
+            tests_require=['pytest'],
             entry_points={
                 'console_scripts': ['hpp2plantuml=hpp2plantuml.hpp2plantuml:main']
             },
@@ -2580,7 +3607,9 @@ org-file (converted to RST format).
 
     - aggregation relationships (very basic support).
 
-    The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+    - dependency relationships
+
+    The package relies on the `CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ package for parsing of C++ header
     files.
 
 
@@ -2600,16 +3629,22 @@ org-file (converted to RST format).
 
     ::
 
-        usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-d] [-t JINJA-FILE]
+                            [--version]
 
         hpp2plantuml tool.
 
         optional arguments:
           -h, --help            show this help message and exit
-          -o FILE, --output-file FILE
-                                Output file
           -i HEADER-FILE, --input-file HEADER-FILE
-                                Input file (must be quoted when using wildcards)
+                                input file (must be quoted when using wildcards)
+          -o FILE, --output-file FILE
+                                output file
+          -d, --enable-dependency
+                                Extract dependency relationships from method arguments
+          -t JINJA-FILE, --template-file JINJA-FILE
+                                path to jinja2 template file
+          --version             show program's version number and exit
 
 
     Input files are added using the ``-i`` option.  Inputs can be full file paths or
@@ -2625,6 +3660,30 @@ org-file (converted to RST format).
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 
+    To customize the output PlantUML file, templates can be used (using the ``-t``
+    parameter):
+
+    .. code:: sh
+        :name: usage-sh-template
+
+        hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+    This will use the ``template.puml`` file as template.  Templates follow the `jinja <http://jinja.pocoo.org/>`_
+    syntax.  For instance, to add a preamble to the PlantUML output, the template
+    file may contain:
+
+    ::
+
+        {% extends 'default.puml' %}
+
+        {% block preamble %}
+        title "This is a title"
+        skinparam backgroundColor #EEEBDC
+        skinparam handwritten true
+        {% endblock %}
+
+    This will inherit from the default template and override the preamble only.
+
     Module
     ~~~~~~
 
@@ -2632,7 +3691,8 @@ org-file (converted to RST format).
     function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
-    produce a string output instead of writing to a text file.
+    produce a string output instead of writing to a text file.  See the API
+    documentation for more details.
 
 
     .. _sec-module-install:
@@ -2793,9 +3853,9 @@ content of the file is mostly following the defaults, with a few exceptions:
     # built documents.
     #
     # The short X.Y version.
-    version = u'v' + u'0.2'
+    version = u'v' + u'0.8.4'
     # The full version, including alpha/beta/rc tags.
-    release = u'v' + u'0.2'
+    release = u'v' + u'0.8.4'
 
     # The language for content autogenerated by Sphinx. Refer to documentation
     # for a list of supported languages.
@@ -2869,7 +3929,7 @@ content of the file is mostly following the defaults, with a few exceptions:
     # The name for this set of Sphinx documents.
     # "<project> v<release> documentation" by default.
     #
-    # html_title = u'hpp2plantuml ' + u'v' + u'0.2'
+    # html_title = u'hpp2plantuml ' + u'v' + u'0.8.4'
 
     # A shorter title for the navigation bar.  Default is the same as html_title.
     #
@@ -3118,7 +4178,9 @@ to the automatically generated and the org-file documents.
 
     - aggregation relationships (very basic support).
 
-    The package relies on the `CppHeaderParser <http://senexcanis.com/open-source/cppheaderparser/>`_ package for parsing of C++ header
+    - dependency relationships
+
+    The package relies on the `CppHeaderParser <https://pypi.org/project/robotpy-cppheaderparser/>`_ package for parsing of C++ header
     files.
 
 
@@ -3138,16 +4200,22 @@ to the automatically generated and the org-file documents.
 
     ::
 
-        usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+        usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-d] [-t JINJA-FILE]
+                            [--version]
 
         hpp2plantuml tool.
 
         optional arguments:
           -h, --help            show this help message and exit
-          -o FILE, --output-file FILE
-                                Output file
           -i HEADER-FILE, --input-file HEADER-FILE
-                                Input file (must be quoted when using wildcards)
+                                input file (must be quoted when using wildcards)
+          -o FILE, --output-file FILE
+                                output file
+          -d, --enable-dependency
+                                Extract dependency relationships from method arguments
+          -t JINJA-FILE, --template-file JINJA-FILE
+                                path to jinja2 template file
+          --version             show program's version number and exit
 
 
     Input files are added using the ``-i`` option.  Inputs can be full file paths or
@@ -3163,6 +4231,30 @@ to the automatically generated and the org-file documents.
 
         hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 
+    To customize the output PlantUML file, templates can be used (using the ``-t``
+    parameter):
+
+    .. code:: sh
+        :name: usage-sh-template
+
+        hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+    This will use the ``template.puml`` file as template.  Templates follow the `jinja <http://jinja.pocoo.org/>`_
+    syntax.  For instance, to add a preamble to the PlantUML output, the template
+    file may contain:
+
+    ::
+
+        {% extends 'default.puml' %}
+
+        {% block preamble %}
+        title "This is a title"
+        skinparam backgroundColor #EEEBDC
+        skinparam handwritten true
+        {% endblock %}
+
+    This will inherit from the default template and override the preamble only.
+
     Module
     ~~~~~~
 
@@ -3170,7 +4262,8 @@ to the automatically generated and the org-file documents.
     function can then be used to create a PlantUML file from a set of input files.
     Alternatively, the ``Diagram`` object can be used directly to build internal
     objects (from files or strings).  The ``Diagram.render()`` method can be used to
-    produce a string output instead of writing to a text file.
+    produce a string output instead of writing to a text file.  See the API
+    documentation for more details.
 
 
     Module documentation generated from docstrings
@@ -3229,9 +4322,9 @@ org-to-rst
 The following source block converts the content of an org heading to rst format
 using the ``org-rst-convert-region-to-rst`` function.  The heading to process is
 passed by its CUSTOM\_ID property (as a string).  In addition, the output
-language can set (although rst is the only instance used in this document) and
-an additional flag ``children`` can be used to control whether the subsections of
-the target section are removed (``children = "remove"``) of kept (any other
+language can be set (although rst is the only instance used in this document)
+and an additional flag ``children`` can be used to control whether the subsections
+of the target section are removed (``children = "remove"``) of kept (any other
 string, e.g. ``"keep"``).
 
 .. code:: common-lisp

@@ -7,7 +7,8 @@ import codecs
 from setuptools import setup, find_packages, Command
 try:
     import sphinx
-    import sphinx.apidoc
+    import sphinx.ext.apidoc
+    import sphinx.cmd.build
 except ImportError:
     pass
 
@@ -18,7 +19,7 @@ except ImportError:
 NAME = "hpp2plantuml"
 PACKAGES = find_packages(where="src")
 META_PATH = os.path.join("src", NAME, "__init__.py")
-KEYWORDS = ["class", "attribute", "boilerplate"]
+KEYWORDS = ["class"]
 CLASSIFIERS = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -27,13 +28,10 @@ CLASSIFIERS = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.3",
-    "Programming Language :: Python :: 3.4",
-    "Programming Language :: Python :: 3.5",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-INSTALL_REQUIRES = ['argparse', 'CppHeaderParser']
+INSTALL_REQUIRES = ['argparse', 'robotpy-cppheaderparser', 'jinja2']
 INSTALL_REQUIRES += ['sphinx', ]
 SETUP_REQUIRES = ['sphinx', 'numpydoc']
 ###################################################################
@@ -83,19 +81,18 @@ class Sphinx(Command):
         src_dir = (self.distribution.package_dir or {'': ''})['']
         src_dir = os.path.join(os.getcwd(),  src_dir)
         sys.path.append('src')
-        print('pwd=', os.getcwd(), ' src-dir=', src_dir)
         # Run sphinx by calling the main method, '--full' also adds a
         # conf.py
-        sphinx.apidoc.main(
-            ['', '--private', '-H', metadata.name,
+        sphinx.ext.apidoc.main(
+            ['--private', '-H', metadata.name,
              '-A', metadata.author,
              '-V', metadata.version,
              '-R', metadata.version,
              '-o', os.path.join('doc', 'source'), src_dir]
         )
         # build the doc sources
-        sphinx.main(['', os.path.join('doc', 'source'),
-                     os.path.join('doc', 'build', 'html')])
+        sphinx.cmd.build.main([os.path.join('doc', 'source'),
+                               os.path.join('doc', 'build', 'html')])
 
 if __name__ == "__main__":
     setup(
@@ -112,12 +109,14 @@ if __name__ == "__main__":
         long_description=read("README.rst"),
         packages=PACKAGES,
         package_dir={"": "src"},
+        package_data={PACKAGES[0]: ['templates/*.puml']},
+        include_package_data=True,
         zip_safe=False,
         classifiers=CLASSIFIERS,
         install_requires=INSTALL_REQUIRES,
         setup_requires=SETUP_REQUIRES,
-        test_suite='nose.collector',
-        tests_require=['nose'],
+        test_suite='pytest',
+        tests_require=['pytest'],
         entry_points={
             'console_scripts': ['hpp2plantuml=hpp2plantuml.hpp2plantuml:main']
         },

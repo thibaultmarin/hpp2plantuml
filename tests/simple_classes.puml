@@ -1,4 +1,11 @@
 @startuml
+
+
+
+
+
+/' Objects '/
+
 abstract class Class01 {
 	+{abstract} AbstractPublicMethod(int param) : bool
 	+PublicMethod(int param) : bool {query}
@@ -10,13 +17,20 @@ abstract class Class01 {
 	+public_var : int
 }
 
+
 class Class02 {
 	+AbstractPublicMethod(int param) : bool
 	-_AbstractMethod(int param) : bool
-	-_PrivateMethod(int param) : bool
+	-_PrivateMethod(T param) : bool
 	-{static} _StaticPrivateMethod(bool param) : bool
 	-_private_var : int
 }
+
+
+class Class02::ClassNested {
+	-var : int
+}
+
 
 class Class03 <template<typename T>> {
 	+Class03()
@@ -25,7 +39,9 @@ class Class03 <template<typename T>> {
 	-_obj : Class01*
 	-_typed_obj : T*
 	-_obj_list : list<Class02>
+	+Method(Interface::Class04& c4) : void
 }
+
 
 enum Enum01 {
 	VALUE_0
@@ -33,8 +49,140 @@ enum Enum01 {
 	VALUE_2
 }
 
+
+class anon_union_1::anon_struct_1 {
+	+x : float
+	+y : float
+	+z : float
+}
+
+
+class anon_union_1::anon_struct_2 {
+	+phi : float
+	+rho : float
+	+theta : float
+}
+
+
+class anon_union_1 {
+	+vec : float[]
+}
+
+
+namespace first_ns {
+	namespace second_ns {
+		class A {
+		}
+
+		namespace third_ns {
+			class B {
+			}
+		}
+	}
+}
+
+
+namespace Interface {
+	class Class04 {
+		+Class04()
+		+~Class04()
+		-_obj : Class01*
+		-_val : Enum01
+		-_var : T
+		-_flag : bool
+	}
+
+	class Class04_derived {
+		+Class04_derived()
+		+~Class04_derived()
+		-_var : int
+	}
+
+	enum Enum {
+		A
+		B
+	}
+
+	class Struct {
+		+a : int
+	}
+
+	namespace NestedNamespace {
+		class Class04_ns {
+			#_e : Enum
+			#_s : Struct
+		}
+	}
+}
+
+
+
+
+
+/' Inheritance relationships '/
+
+first_ns.second_ns.A <|-- Class03
+
+
 Class01 <|-- Class02
+
+
+Class02 <|-- first_ns.second_ns.A
+
+
+Interface.Class04 <|-- Interface.Class04_derived
+
+
+Interface.Class04_derived <|-- Interface.NestedNamespace.Class04_ns
+
+
+
+
+
+/' Aggregation relationships '/
+
 Class03 "2" o-- Class01
-Class03 o-- Class02
+
+
+Class03 *-- Class02
+
+
+Interface.Class04 o-- Class01
+
+
+Interface.Class04 *-- Enum01
+
+
+Interface.NestedNamespace.Class04_ns *-- Interface.Enum
+
+
+Interface.NestedNamespace.Class04_ns *-- Interface.Struct
+
+
+
+
+
+
+/' Dependency relationships '/
+
+Interface.Class04 <.. Class03
+
+
+
+
+
+
+/' Nested objects '/
+
+Class02 +-- Class02::ClassNested
+
+
+anon_union_1 +-- anon_union_1::anon_struct_1
+
+
+anon_union_1 +-- anon_union_1::anon_struct_2
+
+
+
 
 @enduml

@@ -7,6 +7,7 @@ protected:
 	static bool _StaticProtectedMethod(bool param);
 	virtual bool _AbstractMethod(int param) = 0;
 public:
+	Class01& operator=(const Class01&) & = delete;
 	int public_var;
 	bool PublicMethod(int param) const;
 	static bool StaticPublicMethod(bool param);
@@ -17,8 +18,12 @@ class Class02 : public Class01 {
 public:
 	bool AbstractPublicMethod(int param) override;
 private:
+	class ClassNested {
+		int var;
+	};
 	int _private_var;
-	bool _PrivateMethod(int param);
+	template <typename T>
+	bool _PrivateMethod(T param);
 	static bool _StaticPrivateMethod(bool param);
 	bool _AbstractMethod(int param) override;
 };

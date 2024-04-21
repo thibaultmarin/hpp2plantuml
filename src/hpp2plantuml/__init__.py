@@ -1,4 +1,4 @@
-""" hpp2plantuml module
+"""hpp2plantuml module
 
 .. _sec-module:
 
@@ -37,16 +37,22 @@ The command line usage is (``hpp2plantuml --help``):
 
 ::
 
-    usage: hpp2plantuml [-h] [-o FILE] -i HEADER-FILE
+    usage: hpp2plantuml [-h] -i HEADER-FILE [-o FILE] [-d] [-t JINJA-FILE]
+                        [--version]
 
     hpp2plantuml tool.
 
     optional arguments:
       -h, --help            show this help message and exit
-      -o FILE, --output-file FILE
-                            Output file
       -i HEADER-FILE, --input-file HEADER-FILE
-                            Input file (must be quoted when using wildcards)
+                            input file (must be quoted when using wildcards)
+      -o FILE, --output-file FILE
+                            output file
+      -d, --enable-dependency
+                            Extract dependency relationships from method arguments
+      -t JINJA-FILE, --template-file JINJA-FILE
+                            path to jinja2 template file
+      --version             show program's version number and exit
 
 
 Input files are added using the ``-i`` option.  Inputs can be full file paths or
@@ -62,6 +68,30 @@ For instance, the following command will generate an input file for PlantUML
 
     hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml
 
+To customize the output PlantUML file, templates can be used (using the ``-t``
+parameter):
+
+.. code:: sh
+    :name: usage-sh-template
+
+    hpp2plantuml -i File_1.hpp -i "include/Helper_*.hpp" -o output.puml -t template.puml
+
+This will use the ``template.puml`` file as template.  Templates follow the `jinja <http://jinja.pocoo.org/>`_
+syntax.  For instance, to add a preamble to the PlantUML output, the template
+file may contain:
+
+::
+
+    {% extends 'default.puml' %}
+
+    {% block preamble %}
+    title "This is a title"
+    skinparam backgroundColor #EEEBDC
+    skinparam handwritten true
+    {% endblock %}
+
+This will inherit from the default template and override the preamble only.
+
 Module
 ~~~~~~
 
@@ -69,19 +99,20 @@ To use as a module, simply ``import hpp2plantuml``.  The ``CreatePlantUMLFile``
 function can then be used to create a PlantUML file from a set of input files.
 Alternatively, the ``Diagram`` object can be used directly to build internal
 objects (from files or strings).  The ``Diagram.render()`` method can be used to
-produce a string output instead of writing to a text file.
+produce a string output instead of writing to a text file.  See the API
+documentation for more details.
 
 """
 
 __title__ = "hpp2plantuml"
 __description__ = "Convert C++ header files to PlantUML"
-__version__ = '0.2'
+__version__ = '0.8.4'
 __uri__ = "https://github.com/thibaultmarin/hpp2plantuml"
 __doc__ = __description__ + " <" + __uri__ + ">"
 __author__ = "Thibault Marin"
 __email__ = "thibault.marin@gmx.com"
 __license__ = "MIT"
-__copyright__ = "Copyright (c) 2016 Thibault Marin"
+__copyright__ = "Copyright (c) 2023 Thibault Marin"
 
 from .hpp2plantuml import CreatePlantUMLFile, Diagram
 
