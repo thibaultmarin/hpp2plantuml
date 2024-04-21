@@ -1,0 +1,43 @@
+@startuml
+
+{% block preamble %}
+{% endblock %}
+
+{% block objects %}
+/' Objects '/
+{% for object in objects %}
+{{ object.render() }}
+{% endfor %}
+{% endblock %}
+
+{% block inheritance %}
+/' Inheritance relationships '/
+{% for link in inheritance_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+
+{% block aggregation %}
+/' Aggregation relationships '/
+{% for link in aggregation_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+{% if flag_dep %}
+{% block dependency %}
+
+/' Dependency relationships '/
+{% for link in dependency_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+{% endif %}
+
+{% block nested %}
+/' Nested objects '/
+{% for link in nesting_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+
+@enduml
