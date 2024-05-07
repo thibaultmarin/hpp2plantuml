@@ -1123,29 +1123,46 @@ class Diagram(object):
         # Build member type list
         variable_type_list = {}
         for obj in self._objects:
-            obj_name = obj.name
+            if len(obj._namespace) != 0:
+                obj_name = obj._namespace + "::" + obj.name
+            else:
+                obj_name = obj.name
             if isinstance(obj, Class):
                 variable_type_list[obj_name] = obj.build_variable_type_list()
         # Create aggregation links
         aggregation_counts = {}
 
-        for child_class in class_list:
+        for child_class in class_list_ns:
             if child_class in variable_type_list.keys():
                 var_types = variable_type_list[child_class]
                 for var_type in var_types:
-                    for parent in class_list or parent in class_list_ns:
-                        if re.search(r'\b' + parent + r'\b', var_type):
-                            rel_type = 'composition'
-                            if '{}*'.format(parent) in var_type:
-                                rel_type = 'aggregation'
-                            self._augment_comp(aggregation_counts, parent,
-                                               child_class, rel_type=rel_type)
+                    for parent, parent_with_ns in zip(class_list, class_list_ns):
+                        if re.search(r"\b" + parent_with_ns + r"\b", var_type):
+                            rel_type = "composition"
+                            if "{}*".format(parent_with_ns) in var_type:
+                                rel_type = "aggregation"
+                            self._augment_comp(
+                                aggregation_counts,
+                                parent_with_ns,
+                                child_class,
+                                rel_type=rel_type,
+                            )
+                        if re.search(r"\b" + parent + r"\b", var_type):
+                            parent_ns = parent_with_ns[0:-len(parent)]
+                            # Need same namespace
+                            if child_class.startswith(parent_ns):
+                                rel_type = "composition"
+                                if "{}*".format(parent) in var_type:
+                                    rel_type = "aggregation"
+                                self._augment_comp(
+                                    aggregation_counts,
+                                    parent_with_ns,
+                                    child_class,
+                                    rel_type=rel_type,
+                                )
         for obj_class, obj_comp_list in aggregation_counts.items():
             for comp_parent, rel_type, comp_count in obj_comp_list:
-                if obj_class in class_list:
-                    obj_class_idx = class_list.index(obj_class)
-                    comp_parent_idx = class_list.index(comp_parent)
-                elif obj_class in class_list_ns:
+                if obj_class in class_list_ns:
                     obj_class_idx = class_list_ns.index(obj_class)
                     comp_parent_idx = class_list_ns.index(comp_parent)
                 obj_class_obj = class_list_obj[obj_class_idx]['obj']
