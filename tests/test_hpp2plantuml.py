@@ -297,14 +297,15 @@ class TestFullDiagram():
         diag_str_list_add.sort_elements()
         assert diag_render_ref == diag_str_list_add.render()
 
-        # Create from string
-        diag_str = hpp2plantuml.Diagram(flag_dep=flag_dep)
-        diag_str.create_from_string('\n'.join(input_str_list))
-        assert diag_render_ref == diag_str.render()
-        # Reset and parse
-        diag_str.clear()
-        diag_str.create_from_string('\n'.join(input_str_list))
-        assert diag_render_ref == diag_str.render()
+        # # Create from string
+        # # Disable test to allow duplicate class name (in different files)
+        # diag_str = hpp2plantuml.Diagram(flag_dep=flag_dep)
+        # diag_str.create_from_string('\n'.join(input_str_list))
+        # assert diag_render_ref == diag_str.render()
+        # # Reset and parse
+        # diag_str.clear()
+        # diag_str.create_from_string('\n'.join(input_str_list))
+        # assert diag_render_ref == diag_str.render()
 
         # Manually build object
         diag_manual_add = hpp2plantuml.Diagram(flag_dep=flag_dep)
@@ -319,7 +320,7 @@ class TestFullDiagram():
         assert diag_render_ref == diag_manual_add.render()
 
     def test_main_function(self):
-        #self._test_main_function_helper(False)
+        self._test_main_function_helper(False)
         self._test_main_function_helper(True)
 
     def _test_main_function_helper(self, flag_dep=False):

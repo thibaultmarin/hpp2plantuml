@@ -27,3 +27,11 @@ private:
 	static bool _StaticPrivateMethod(bool param);
 	bool _AbstractMethod(int param) override;
 };
+
+// Duplicate class names in different scopes
+class Class04 {
+	int b;
+};
+class Class04_derived {
+	int c;
+};

@@ -42,6 +42,7 @@ namespace Interface {
 		protected:
 			Struct _s;
 			Enum _e;
+			Class04* _p;
 		};
 	};
 };

@@ -43,6 +43,16 @@ class Class03 <template<typename T>> {
 }
 
 
+class Class04 {
+	-b : int
+}
+
+
+class Class04_derived {
+	-c : int
+}
+
+
 enum Enum01 {
 	VALUE_0
 	VALUE_1
@@ -109,6 +119,7 @@ namespace Interface {
 
 	namespace NestedNamespace {
 		class Class04_ns {
+			#_p : Class04*
 			#_e : Enum
 			#_s : Struct
 		}
@@ -151,6 +162,9 @@ Interface.Class04 o-- Class01
 
 
 Interface.Class04 *-- Enum01
+
+
+Interface.NestedNamespace.Class04_ns o-- Interface.Class04
 
 
 Interface.NestedNamespace.Class04_ns *-- Interface.Enum
