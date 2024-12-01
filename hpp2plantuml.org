@@ -16,7 +16,7 @@ this single org-file.
 
 The current version of the code is:
 #+NAME: hpp2plantuml-version
-: 0.8.5
+: 0.8.6
 
 The source code can be found on GitHub:
 https://github.com/thibaultmarin/hpp2plantuml.
@@ -1518,17 +1518,24 @@ class Diagram(object):
         parent = parent_s[-1]
         obj_ns_list = obj_ns_list_base + parent_s[:-1]
         parent_obj = None
-        found = False
         pi = 0
-        while not found and pi <= len(obj_ns_list):
+        while pi <= len(obj_ns_list):
             ns_list_trunc = -pi if pi > 0 else None
             obj_ns_c = obj_ns_list[:ns_list_trunc]
+            obj_match_list = []
             for c, c_n, c_ns in zip(class_list_obj, class_list,
                                     class_list_ns):
                 obj_other_ns = c_ns.split('::')[:-1]
                 if obj_ns_c == obj_other_ns and (f_cmp(parent, c_n) or
                                                  f_cmp(parent, c_ns)):
-                    return c['obj']
+                    obj_match_list.append([c, c_n, c_ns])
+            if len(obj_match_list) == 1:
+                return obj_match_list[0][0]['obj']
+            elif len(obj_match_list) > 1:
+                obj_match_list = sorted(obj_match_list, key=lambda x:
+                                        re.search(r'\b{}\b'.format(x[1]),
+                                                  parent).span()[0])
+                return obj_match_list[0][0]['obj']
             pi += 1
         return None
 
@@ -1595,7 +1602,7 @@ class Diagram(object):
                                      if s != '']
                         p_cl_plist = [s for s in var_obj.name.split('::')
                                       if s != '']
-                        if '{}*'.format(var_obj.name) in var_in:
+                        if is_ptr(var_obj.name, var_in):
                             rel_type = 'aggregation'
                         else:
                             rel_type = 'composition'
@@ -1925,6 +1932,41 @@ def get_namespace_link_name(namespace):
     if not namespace:
         return ''
     return '.'.join(namespace.split('::'))
+#+END_SRC
+
+
+*** Pointer type check
+
+#+NAME: py-help-pointer-type
+#+BEGIN_SRC python
+def is_ptr(obj_name, obj):
+    """Determine if object type represents a pointer
+
+    Parameters
+    ----------
+    obj_name : str
+        Object base name
+    obj : str
+        Full type
+
+    Returns
+    -------
+    bool
+        True if ``obj`` is determined to represent a point to an object of type
+        ``obj_name``
+
+    Examples
+    --------
+    >>> is_ptr('Object', 'Object*')
+    True
+    >>> is_ptr('Object', 'unique_ptr<Object>')
+    True
+    >>> is_ptr('Object', 'unique_ptr<AnotherObject>')
+    False
+    """
+    return ('{}*'.format(obj_name) in obj or
+            any('{}_ptr<{}>'.format(ptr_type, obj_name) in obj
+                for ptr_type in ['unique', 'shared', 'weak']))
 #+END_SRC
 
 
