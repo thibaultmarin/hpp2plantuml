@@ -43,6 +43,7 @@ class Container(object):
 
     This class defines the basic interface for parsed objects (e.g. class).
     """
+
     def __init__(self, container_type, name):
         """Class constructor
 
@@ -92,7 +93,7 @@ class Container(object):
             if not parent:
                 self._namespace = _cleanup_namespace(namespace)
             else:
-                #self._parent = re.sub('[<>]', '', parent['name'])
+                # self._parent = re.sub('[<>]', '', parent['name'])
                 self._parent = '::'.join(self._name.split('::')[:-1])
                 p = parent
                 while p.get('parent') is not None:
@@ -169,6 +170,7 @@ class ContainerMember(object):
     This class defines the basic interface for object members (e.g. class
     variables, etc.)
     """
+
     def __init__(self, header_member, **kwargs):
         """Constructor
 
@@ -222,6 +224,7 @@ class Class(Container):
     * member variables and methods (abstract and static)
     * public, private, protected members (static)
     """
+
     def __init__(self, header_class):
         """Constructor
 
@@ -330,6 +333,7 @@ class ClassMember(ContainerMember):
     ``private`` or ``protected``) and a static flag.
 
     """
+
     def __init__(self, class_member, member_scope='private'):
         """Constructor
 
@@ -367,10 +371,10 @@ class ClassMember(ContainerMember):
         else:
             props = ''
         vis = MEMBER_PROP_MAP[self._scope] + \
-              ('{static} ' if self._static else '')
+            ('{static} ' if self._static else '')
         member_str = vis + self._render_name() + \
-                     (' : ' + self._type if self._type else '') + \
-                     props
+            (' : ' + self._type if self._type else '') + \
+            props
         return member_str
 
     def _render_name(self):
@@ -392,6 +396,7 @@ class ClassVariable(ClassMember):
     Additionally to the base class, it stores variable types as strings.  This
     is used to establish aggregation relationships between objects.
     """
+
     def __init__(self, class_variable, member_scope='private'):
         """Constructor
 
@@ -410,7 +415,6 @@ class ClassVariable(ClassMember):
         self._type = _cleanup_type(class_variable['type'])
         if class_variable.get('array', 0):
             self._type += '[]'
-
 
     def get_type(self):
         """Variable type accessor
@@ -431,6 +435,7 @@ class ClassMethod(ClassMember):
     This class extends `ClassMember` for member methods.  It stores additional
     method properties (abstract, destructor flag, input parameter types).
     """
+
     def __init__(self, class_method, member_scope):
         """Constructor
 
@@ -484,9 +489,9 @@ class ClassMethod(ClassMember):
         assert not self._static or not self._abstract
 
         method_str = ('{abstract} ' if self._abstract else '') + \
-                     self._name + '(' + \
-                     ', '.join(' '.join(it).strip()
-                               for it in self._param_list) + ')'
+            self._name + '(' + \
+            ', '.join(' '.join(it).strip()
+                      for it in self._param_list) + ')'
 
         return method_str
 
@@ -499,6 +504,7 @@ class Enum(Container):
     This class defines a simple object inherited from the base `Container`
     class.  It simply lists enumerated values.
     """
+
     def __init__(self, header_enum, parent=None):
         """Constructor
 
@@ -530,6 +536,7 @@ class EnumValue(ContainerMember):
     This class only contains the name of the enum value (the actual integer
     value is ignored).
     """
+
     def __init__(self, header_value, **kwargs):
         """Constructor
 
@@ -561,6 +568,7 @@ class Namespace(list):
     This class lists other containers or namespaces and wraps the rendered
     output in a ``namespace`` block.
     """
+
     def __init__(self, name, *args):
         """Constructor
 
@@ -599,6 +607,7 @@ class ClassRelationship(object):
     This includes a parent/child pair and a relationship type (e.g. inheritance
     or aggregation).
     """
+
     def __init__(self, link_type, c_parent, c_child):
         """Constructor
 
@@ -696,6 +705,7 @@ class ClassInheritanceRelationship(ClassRelationship):
     This module extends the base `ClassRelationship` class by setting the link
     type to ``inherit``.
     """
+
     def __init__(self, c_parent, c_child, **kwargs):
         """Constructor
 
@@ -724,6 +734,7 @@ class ClassAggregationRelationship(ClassRelationship):
     variable type (possibly within a container such as a list) in a class
     definition.
     """
+
     def __init__(self, c_object, c_container, c_count=1,
                  rel_type='aggregation', **kwargs):
         """Constructor
@@ -765,6 +776,7 @@ class ClassDependencyRelationship(ClassRelationship):
     Dependencies occur when member methods depend on an object of another class
     in the diagram.
     """
+
     def __init__(self, c_parent, c_child, **kwargs):
         """Constructor
 
@@ -789,6 +801,7 @@ class ClassNestingRelationship(ClassRelationship):
     Dependencies occur when member methods depend on an object of another class
     in the diagram.
     """
+
     def __init__(self, c_parent, c_child, **kwargs):
         """Constructor
 
@@ -843,6 +856,7 @@ class Diagram(object):
     Each method has versions for file and string inputs and folder string lists
     and file lists inputs.
     """
+
     def __init__(self, template_file=None, flag_dep=False):
         """Constructor
 
@@ -1112,32 +1126,35 @@ class Diagram(object):
             Matching :class:`Class` object if found
         """
         if f_cmp is None:
-            f_cmp = lambda x, y: x == y
+            def f_cmp(x, y): return x == y
         class_list_obj, class_list, class_list_ns = self._get_class_list()
         parent_s = parent_in.split('::')
         parent = parent_s[-1]
-        obj_ns_list = obj_ns_list_base + parent_s[:-1]
-        parent_obj = None
-        pi = 0
-        while pi <= len(obj_ns_list):
-            ns_list_trunc = -pi if pi > 0 else None
-            obj_ns_c = obj_ns_list[:ns_list_trunc]
-            obj_match_list = []
-            for c, c_n, c_ns in zip(class_list_obj, class_list,
-                                    class_list_ns):
-                obj_other_ns = c_ns.split('::')[:-1]
-                if obj_ns_c == obj_other_ns and (f_cmp(parent, c_n) or
-                                                 f_cmp(parent, c_ns)):
-                    obj_match_list.append([c, c_n, c_ns])
-            if len(obj_match_list) == 1:
-                return obj_match_list[0][0]['obj']
-            elif len(obj_match_list) > 1:
-                obj_match_list = sorted(obj_match_list, key=lambda x:
-                                        re.search(r'\b{}\b'.format(x[1]),
-                                                  parent).span()[0])
-                return obj_match_list[0][0]['obj']
-            pi += 1
-        return None
+        while True:
+            obj_ns_list = obj_ns_list_base + parent_s[:-1]
+            parent_obj = None
+            pi = 0
+            while pi <= len(obj_ns_list):
+                ns_list_trunc = -pi if pi > 0 else None
+                obj_ns_c = obj_ns_list[:ns_list_trunc]
+                obj_match_list = []
+                for c, c_n, c_ns in zip(class_list_obj, class_list,
+                                        class_list_ns):
+                    obj_other_ns = c_ns.split('::')[:-1]
+                    if obj_ns_c == obj_other_ns and (f_cmp(parent, c_n) or
+                                                     f_cmp(parent, c_ns)):
+                        obj_match_list.append([c, c_n, c_ns])
+                if len(obj_match_list) == 1:
+                    return obj_match_list[0][0]['obj']
+                elif len(obj_match_list) > 1:
+                    obj_match_list = sorted(obj_match_list, key=lambda x:
+                                            re.search(r'\b{}\b'.format(x[1]),
+                                                      parent).span()[0])
+                    return obj_match_list[0][0]['obj']
+                pi += 1
+            if len(obj_ns_list_base) <= 0:
+                return None
+            obj_ns_list_base = obj_ns_list_base[:-1]
 
     def build_inheritance_list(self):
         """Build list of inheritance between objects
@@ -1181,7 +1198,7 @@ class Diagram(object):
         for each relationships, using the calculated count.
         """
         self._aggregation_list = []
-         # Build list of classes in diagram
+        # Build list of classes in diagram
         class_list_obj, class_list, class_list_ns = self._get_class_list()
 
         # Create aggregation links
@@ -1391,6 +1408,7 @@ def _cleanup_type(type_str):
                   re.sub(r'[ ]+([*&])', r'\1',
                          re.sub(r'(\s)+', r'\1', type_str)))
 
+
 def _cleanup_namespace(ns_str):
     """Cleanup string representing a C++ namespace
 
@@ -1457,6 +1475,7 @@ def expand_file_list(input_files):
         file_list += glob.glob(input_file, recursive=True)
     return file_list
 
+
 def wrap_namespace(input_str, namespace):
     """Wrap string in namespace
 
@@ -1477,6 +1496,7 @@ def wrap_namespace(input_str, namespace):
                    for line in input_str.splitlines()]) + \
         '\n}\n'
 
+
 def get_namespace_link_name(namespace):
     """Generate namespace string for link
 
@@ -1494,6 +1514,7 @@ def get_namespace_link_name(namespace):
     if not namespace:
         return ''
     return '.'.join(namespace.split('::'))
+
 
 def is_ptr(obj_name, obj):
     """Determine if object type represents a pointer
